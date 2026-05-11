@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cell Division Slowdown — Human Impact Simulation</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: #111827;
+    --border: #1f2d45;
+    --accent: #3b82f6;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --ok: #22c55e;
+    --text: #e2e8f0;
+    --muted: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; }
+  header h1 { font-size: 1.25rem; font-weight: 600; }
+  header span { font-size: 0.8rem; color: var(--muted); background: #1e2d40; padding: 0.2rem 0.6rem; border-radius: 99px; }
+
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 0; height: calc(100vh - 60px); }
+
+  /* ── LEFT PANEL ── */
+  .left { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+
+  .control-block { padding: 1.25rem; border-bottom: 1px solid var(--border); }
+  .control-block h2 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.75rem; }
+
+  .slider-row { display: flex; align-items: center; gap: 0.75rem; }
+  .slider-row label { font-size: 0.8rem; white-space: nowrap; }
+  input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; }
+  .val-badge { background: var(--accent); color: #fff; font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 4px; min-width: 42px; text-align: center; }
+
+  .btn-row { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+  button { flex: 1; padding: 0.45rem 0.75rem; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 6px; font-size: 0.8rem; cursor: pointer; transition: background 0.15s; }
+  button:hover { background: #1e2d40; }
+  button.primary { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #2563eb; }
+  button.danger { background: var(--danger); border-color: var(--danger); font-weight: 600; }
+
+  /* Systems list */
+  .system-list { padding: 0.5rem 0; }
+  .system-item { padding: 0.6rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; cursor: pointer; transition: background 0.1s; }
+  .system-item:hover { background: #1a2030; }
+  .system-item.active { background: #1e2d40; border-left: 3px solid var(--accent); padding-left: calc(1.25rem - 3px); }
+  .sys-icon { font-size: 1.1rem; width: 1.5rem; text-align: center; }
+  .sys-name { font-size: 0.85rem; flex: 1; }
+  .sys-bar { height: 4px; background: var(--border); border-radius: 2px; width: 60px; overflow: hidden; }
+  .sys-fill { height: 100%; border-radius: 2px; transition: width 0.6s, background-color 0.6s; }
+
+  /* timeline */
+  .timeline { padding: 1rem 1.25rem; flex: 1; min-height: 0; }
+  .tl-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.6rem; }
+  .tl-scroll { overflow-y: auto; max-height: 220px; }
+  .tl-item { display: flex; gap: 0.6rem; align-items: flex-start; margin-bottom: 0.5rem; font-size: 0.78rem; line-height: 1.4; }
+  .tl-time { color: var(--muted); white-space: nowrap; min-width: 38px; }
+  .tl-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 0.2rem; flex-shrink: 0; }
+  .tl-dot.ok    { background: var(--ok); }
+  .tl-dot.warn  { background: var(--warn); }
+  .tl-dot.danger { background: var(--danger); }
+
+  /* ── RIGHT PANEL ── */
+  .right { display: flex; flex-direction: column; overflow: hidden; }
+
+  /* canvas area */
+  .canvas-area { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); min-height: 0; }
+  .panel { background: var(--bg); padding: 1rem; display: flex; flex-direction: column; overflow: hidden; }
+  .panel-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.5rem; }
+  canvas { width: 100%; flex: 1; border-radius: 4px; }
+
+  /* detail bar */
+  .detail-bar { border-top: 1px solid var(--border); padding: 1rem 1.5rem; background: var(--panel); }
+  .detail-bar h3 { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
+  .detail-bar p  { font-size: 0.8rem; color: #94a3b8; line-height: 1.6; }
+
+  .status-pill { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 99px; font-weight: 600; }
+  .status-pill.ok     { background: #14532d; color: var(--ok); }
+  .status-pill.warn   { background: #451a03; color: var(--warn); }
+  .status-pill.danger { background: #450a0a; color: var(--danger); }
+  .status-pill.critical { background: #3b0764; color: #d946ef; }
+
+  /* day counter */
+  .day-counter { font-size: 2rem; font-weight: 700; color: var(--accent); margin-bottom: 0.1rem; }
+  .day-label { font-size: 0.75rem; color: var(--muted); }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-top: 0.75rem; }
+  .stat-card { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.75rem; }
+  .stat-card .sv { font-size: 1.1rem; font-weight: 700; }
+  .stat-card .sl { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Cell Division Slowdown Simulation</h1>
+  </div>
+  <span>Educational Model</span>
+</header>
+
+<div class="layout">
+  <!-- LEFT -->
+  <div class="left">
+    <div class="control-block">
+      <h2>Slowdown Factor</h2>
+      <div class="slider-row">
+        <label>Normal</label>
+        <input type="range" id="slowdown" min="0" max="100" value="0" step="1">
+        <label>Stopped</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
+        <span style="font-size:0.8rem;color:var(--muted);">Division rate:</span>
+        <span class="val-badge" id="rateLabel">100%</span>
+      </div>
+      <div class="btn-row" style="margin-top:0.75rem;">
+        <button class="primary" id="btnPlay">▶ Run</button>
+        <button id="btnPause">⏸ Pause</button>
+        <button class="danger" id="btnReset">↺ Reset</button>
+      </div>
+      <div style="margin-top:0.75rem;display:flex;align-items:center;gap:0.6rem;">
+        <span style="font-size:0.75rem;color:var(--muted);">Sim speed:</span>
+        <input type="range" id="speed" min="1" max="20" value="5" style="flex:1;accent-color:var(--accent);">
+        <span class="val-badge" id="speedLabel" style="background:#374151;">5x</span>
+      </div>
+    </div>
+
+    <div class="control-block" style="padding-bottom:0.5rem;">
+      <h2>Body Systems</h2>
+      <div class="system-list" id="systemList"></div>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-title">Event Log</div>
+      <div class="tl-scroll" id="timeline"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="canvas-area">
+      <div class="panel">
+        <div class="panel-title">Cell Division Activity</div>
+        <canvas id="cvDivision"></canvas>
+      </div>
+      <div class="panel">
+        <div class="panel-title">System Health Over Time</div>
+        <canvas id="cvHealth"></canvas>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Blood Cell Counts</div>
+        <canvas id="cvBlood"></canvas>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Immune Response</div>
+        <canvas id="cvImmune"></canvas>
+      </div>
+    </div>
+
+    <div class="detail-bar" id="detailBar">
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem;">
+        <div>
+          <div class="day-counter" id="dayCounter">0</div>
+          <div class="day-label">days elapsed</div>
+        </div>
+        <div class="stat-grid" style="flex:1;">
+          <div class="stat-card">
+            <div class="sv" id="statRBC" style="color:#ef4444;">100%</div>
+            <div class="sl">Red Blood Cells</div>
+          </div>
+          <div class="stat-card">
+            <div class="sv" id="statWBC" style="color:#3b82f6;">100%</div>
+            <div class="sl">White Blood Cells</div>
+          </div>
+          <div class="stat-card">
+            <div class="sv" id="statSkin" style="color:#f59e0b;">100%</div>
+            <div class="sl">Skin Integrity</div>
+          </div>
+          <div class="stat-card">
+            <div class="sv" id="statGut" style="color:#22c55e;">100%</div>
+            <div class="sl">Gut Lining</div>
+          </div>
+        </div>
+      </div>
+      <h3 id="systemName">Overview <span class="status-pill ok" id="statusPill">Normal</span></h3>
+      <p id="systemDesc">Adjust the slowdown slider and press Run to begin the simulation. All body systems depend on continuous cell division for maintenance and repair.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  DATA MODEL
+// ─────────────────────────────────────────────
+const SYSTEMS = [
+  {
+    id: 'gut',
+    icon: '🫀',
+    name: 'Gut Lining',
+    renewDays: 4,        // days to fully replace at normal rate
+    color: '#22c55e',
+    criticalDay: 7,
+    stages: [
+      { pct: 80, day:  3, label: 'Gut cell renewal slowing', sev: 'warn' },
+      { pct: 50, day:  7, label: 'Diarrhea, malabsorption begin', sev: 'warn' },
+      { pct: 25, day: 14, label: 'Intestinal bleeding, severe nutrient loss', sev: 'danger' },
+      { pct:  5, day: 21, label: 'Gut barrier failure — sepsis risk', sev: 'danger' },
+    ],
+    info: {
+      ok:       'The intestinal epithelium replaces itself every 3–5 days — the fastest-renewing tissue in the body. Absorption and barrier function are normal.',
+      warn:     'Villi are shortening. Nutrient absorption drops. Nausea, cramping, and loose stools develop as old cells outpace replacements.',
+      danger:   'Gut lining is thin and ulcerated. Bacteria cross into the bloodstream. Severe malnutrition and sepsis risk escalate rapidly.',
+      critical: 'Intestinal epithelium has essentially failed. Systemic infection is inevitable without total parenteral nutrition and intensive care.',
+    }
+  },
+  {
+    id: 'blood',
+    icon: '🩸',
+    name: 'Blood (Bone Marrow)',
+    renewDays: 120,
+    color: '#ef4444',
+    criticalDay: 30,
+    stages: [
+      { pct: 90, day: 10, label: 'Platelet production declining', sev: 'warn' },
+      { pct: 70, day: 21, label: 'Anemia develops — fatigue, pallor', sev: 'warn' },
+      { pct: 45, day: 35, label: 'Spontaneous bruising & bleeding', sev: 'danger' },
+      { pct: 15, day: 60, label: 'Aplastic anemia — transfusions needed', sev: 'danger' },
+    ],
+    info: {
+      ok:       'Bone marrow produces ~200 billion red blood cells and ~10 billion white blood cells per day. Oxygen delivery and clotting are normal.',
+      warn:     'Platelet counts falling below 150k/μL. Mild anemia causes fatigue and reduced exercise tolerance. Healing slows.',
+      danger:   'Hemoglobin below 8 g/dL. Platelet count under 50k — risk of spontaneous hemorrhage. Frequent transfusions required.',
+      critical: 'Near-total bone marrow failure. Incompatible with life without transfusions, bone marrow transplant, or stem cell rescue.',
+    }
+  },
+  {
+    id: 'immune',
+    icon: '🛡️',
+    name: 'Immune System',
+    renewDays: 14,
+    color: '#3b82f6',
+    criticalDay: 20,
+    stages: [
+      { pct: 80, day:  7, label: 'Neutrophil counts dropping', sev: 'warn' },
+      { pct: 55, day: 14, label: 'Opportunistic infections begin', sev: 'warn' },
+      { pct: 30, day: 25, label: 'Severe immunodeficiency — any infection lethal', sev: 'danger' },
+      { pct:  8, day: 40, label: 'Complete immune collapse', sev: 'danger' },
+    ],
+    info: {
+      ok:       'Neutrophils, lymphocytes, and macrophages are continuously replenished. Pathogens are cleared efficiently.',
+      warn:     'Neutrophil count (ANC) falling toward 1,000/μL — neutropenic threshold. Minor infections linger and worsen.',
+      danger:   'ANC below 500 — severe neutropenia. Fever becomes a medical emergency. Fungal and bacterial sepsis are common killers.',
+      critical: 'Functional immunity is gone. Normally harmless organisms cause fatal infections.',
+    }
+  },
+  {
+    id: 'skin',
+    icon: '🧬',
+    name: 'Skin',
+    renewDays: 21,
+    color: '#f59e0b',
+    criticalDay: 45,
+    stages: [
+      { pct: 85, day: 14, label: 'Wound healing significantly impaired', sev: 'warn' },
+      { pct: 60, day: 28, label: 'Skin thinning, fragility increases', sev: 'warn' },
+      { pct: 35, day: 50, label: 'Chronic non-healing wounds, hair loss', sev: 'danger' },
+      { pct: 10, day: 80, label: 'Skin barrier fails — infection, fluid loss', sev: 'danger' },
+    ],
+    info: {
+      ok:       'The epidermis fully renews every 2–4 weeks. Wounds heal within days. Hair follicles cycle normally.',
+      warn:     'Keratinocyte replacement is lagging. Cuts take weeks to close. The skin appears thinner and more translucent.',
+      danger:   'Pressure sores and abrasions become permanent. Hair falls out. Transepidermal water loss increases, raising infection risk.',
+      critical: 'The skin can no longer act as a protective barrier. Fluid regulation fails and systemic infection is continuous.',
+    }
+  },
+  {
+    id: 'healing',
+    icon: '🩹',
+    name: 'Wound Healing',
+    renewDays: 10,
+    color: '#a78bfa',
+    criticalDay: 25,
+    stages: [
+      { pct: 70, day:  5, label: 'Healing time doubles', sev: 'warn' },
+      { pct: 45, day: 15, label: 'Minor cuts become chronic wounds', sev: 'warn' },
+      { pct: 20, day: 30, label: 'Surgical wounds cannot close', sev: 'danger' },
+      { pct:  5, day: 55, label: 'Tissue repair essentially halted', sev: 'danger' },
+    ],
+    info: {
+      ok:       'Fibroblasts, endothelial cells, and keratinocytes rapidly fill wounds. A minor cut heals in 5–7 days.',
+      warn:     'Granulation tissue forms very slowly. A paper cut takes weeks. Scar formation is incomplete.',
+      danger:   'Wounds fail to close. Secondary infection, gangrene, and amputation risks rise sharply.',
+      critical: 'No meaningful healing occurs. Any injury — surgical or accidental — becomes life-threatening.',
+    }
+  },
+  {
+    id: 'neuro',
+    icon: '🧠',
+    name: 'Nervous System',
+    renewDays: 999,
+    color: '#06b6d4',
+    criticalDay: 90,
+    stages: [
+      { pct: 95, day: 30, label: 'Minor neurological effects from anemia', sev: 'warn' },
+      { pct: 80, day: 60, label: 'Cognitive fog, neuropathy from malnutrition', sev: 'warn' },
+      { pct: 55, day: 90, label: 'Significant CNS changes from systemic failure', sev: 'danger' },
+      { pct: 20, day:130, label: 'Severe neurological deterioration', sev: 'danger' },
+    ],
+    info: {
+      ok:       'Most neurons do not divide — they are maintained by support cells (glia) and synaptic plasticity. The CNS is relatively protected initially.',
+      warn:     'Anemia reduces oxygen delivery to the brain. B12 and nutrient deficits from gut failure begin damaging myelin sheaths.',
+      danger:   'Systemic hypoxia, toxin buildup, and malnutrition cause measurable cognitive decline and peripheral nerve damage.',
+      critical: 'The brain suffers secondary damage from cascading organ failure even though its own cells have not divided.',
+    }
+  },
+];
+
+// ─────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────
+let state = {
+  running: false,
+  day: 0,
+  slowdown: 0,       // 0–100
+  speed: 5,
+  selectedSystem: 'gut',
+  history: [],       // [{day, healths}]
+  events: [],        // timeline entries
+  tick: 0,
+  animFrame: null,
+  lastTs: null,
+  dayAccum: 0,
+};
+
+// compute health [0–100] for a system at a given day with slowdown %
+function systemHealth(sys, day, slowdownPct) {
+  if (slowdownPct === 0) return 100;
+  const factor = slowdownPct / 100; // 0→1
+  // Effective replacement deficit accumulates over time
+  // faster-renewing systems degrade quicker
+  const degradeRate = factor * (1 / sys.renewDays) * 100;
+  const raw = 100 - degradeRate * day;
+  return Math.max(0, Math.min(100, raw));
+}
+
+function allHealths(day, slowdownPct) {
+  const h = {};
+  SYSTEMS.forEach(s => { h[s.id] = systemHealth(s, day, slowdownPct); });
+  return h;
+}
+
+function healthColor(v) {
+  if (v >= 75) return '#22c55e';
+  if (v >= 50) return '#f59e0b';
+  if (v >= 25) return '#ef4444';
+  return '#9333ea';
+}
+
+function severity(v) {
+  if (v >= 75) return 'ok';
+  if (v >= 50) return 'warn';
+  if (v >= 25) return 'danger';
+  return 'critical';
+}
+
+// ─────────────────────────────────────────────
+//  BUILD SIDEBAR
+// ─────────────────────────────────────────────
+const sysListEl = document.getElementById('systemList');
+SYSTEMS.forEach(s => {
+  const div = document.createElement('div');
+  div.className = 'system-item' + (s.id === state.selectedSystem ? ' active' : '');
+  div.id = 'si_' + s.id;
+  div.innerHTML = `
+    <span class="sys-icon">${s.icon}</span>
+    <span class="sys-name">${s.name}</span>
+    <div class="sys-bar"><div class="sys-fill" id="sf_${s.id}" style="width:100%;background:${s.color}"></div></div>
+  `;
+  div.addEventListener('click', () => {
+    state.selectedSystem = s.id;
+    document.querySelectorAll('.system-item').forEach(el => el.classList.remove('active'));
+    div.classList.add('active');
+    updateDetail();
+  });
+  sysListEl.appendChild(div);
+});
+
+// ─────────────────────────────────────────────
+//  CONTROLS
+// ─────────────────────────────────────────────
+const slowdownEl = document.getElementById('slowdown');
+const rateLabel  = document.getElementById('rateLabel');
+const speedEl    = document.getElementById('speed');
+const speedLabel = document.getElementById('speedLabel');
+
+slowdownEl.addEventListener('input', () => {
+  state.slowdown = +slowdownEl.value;
+  rateLabel.textContent = (100 - state.slowdown) + '%';
+  if (!state.running) { updateAll(); }
+});
+speedEl.addEventListener('input', () => {
+  state.speed = +speedEl.value;
+  speedLabel.textContent = state.speed + 'x';
+});
+document.getElementById('btnPlay').addEventListener('click',  startSim);
+document.getElementById('btnPause').addEventListener('click', pauseSim);
+document.getElementById('btnReset').addEventListener('click', resetSim);
+
+function startSim() {
+  if (state.running) return;
+  state.running = true;
+  state.lastTs = null;
+  state.animFrame = requestAnimationFrame(tick);
+}
+function pauseSim() {
+  state.running = false;
+  if (state.animFrame) cancelAnimationFrame(state.animFrame);
+}
+function resetSim() {
+  pauseSim();
+  state.day = 0;
+  state.history = [];
+  state.events = [];
+  state.dayAccum = 0;
+  document.getElementById('timeline').innerHTML = '';
+  updateAll();
+}
+
+// ─────────────────────────────────────────────
+//  SIMULATION TICK
+// ─────────────────────────────────────────────
+const MS_PER_SIM_DAY = 1000; // at 1x speed, 1 real second = 1 sim day
+
+function tick(ts) {
+  if (!state.running) return;
+  if (!state.lastTs) state.lastTs = ts;
+  const dt = ts - state.lastTs;
+  state.lastTs = ts;
+
+  state.dayAccum += dt * state.speed / MS_PER_SIM_DAY;
+  const newDays = Math.floor(state.dayAccum);
+  if (newDays > 0) {
+    state.dayAccum -= newDays;
+    for (let i = 0; i < newDays; i++) {
+      state.day++;
+      const h = allHealths(state.day, state.slowdown);
+      state.history.push({ day: state.day, h });
+      if (state.history.length > 300) state.history.shift();
+      checkEvents(state.day, h);
+      if (state.day >= 180) { pauseSim(); addEvent(state.day, '⚠ Simulation ended at 180-day mark', 'danger'); break; }
+    }
+    updateAll();
+  }
+
+  state.animFrame = requestAnimationFrame(tick);
+}
+
+// ─────────────────────────────────────────────
+//  EVENT LOG
+// ─────────────────────────────────────────────
+const firedEvents = new Set();
+
+function checkEvents(day, h) {
+  SYSTEMS.forEach(sys => {
+    sys.stages.forEach(st => {
+      const key = sys.id + '_' + st.pct;
+      if (!firedEvents.has(key) && h[sys.id] <= st.pct) {
+        firedEvents.add(key);
+        addEvent(day, `[${sys.name}] ${st.label}`, st.sev);
+      }
+    });
+  });
+}
+
+function addEvent(day, label, sev) {
+  state.events.unshift({ day, label, sev });
+  const tl = document.getElementById('timeline');
+  const row = document.createElement('div');
+  row.className = 'tl-item';
+  row.innerHTML = `<span class="tl-time">Day ${day}</span><span class="tl-dot ${sev}"></span><span>${label}</span>`;
+  tl.prepend(row);
+}
+
+function clearFiredEvents() { firedEvents.clear(); }
+
+// ─────────────────────────────────────────────
+//  UPDATE UI
+// ─────────────────────────────────────────────
+function updateAll() {
+  const day  = state.day;
+  const slow = state.slowdown;
+  const h    = allHealths(day, slow);
+
+  // day counter
+  document.getElementById('dayCounter').textContent = day;
+
+  // sidebar bars
+  SYSTEMS.forEach(s => {
+    const fill = document.getElementById('sf_' + s.id);
+    if (fill) { fill.style.width = h[s.id] + '%'; fill.style.background = healthColor(h[s.id]); }
+  });
+
+  // stat cards
+  document.getElementById('statRBC').textContent  = Math.round(h['blood']) + '%';
+  document.getElementById('statWBC').textContent  = Math.round(h['immune']) + '%';
+  document.getElementById('statSkin').textContent = Math.round(h['skin']) + '%';
+  document.getElementById('statGut').textContent  = Math.round(h['gut']) + '%';
+  ['statRBC','statWBC','statSkin','statGut'].forEach(id => {
+    document.getElementById(id).style.color = healthColor(parseFloat(document.getElementById(id).textContent));
+  });
+
+  updateDetail();
+  drawAllCanvases(h);
+}
+
+function updateDetail() {
+  const sys = SYSTEMS.find(s => s.id === state.selectedSystem);
+  const h   = allHealths(state.day, state.slowdown);
+  const v   = h[sys.id];
+  const sev = severity(v);
+
+  document.getElementById('systemName').innerHTML =
+    `${sys.icon} ${sys.name} <span class="status-pill ${sev}" id="statusPill">${sev.toUpperCase()}</span>`;
+  document.getElementById('systemDesc').textContent = sys.info[sev];
+}
+
+// ─────────────────────────────────────────────
+//  CANVAS DRAWING
+// ─────────────────────────────────────────────
+function setupCanvas(id) {
+  const cvs = document.getElementById(id);
+  const rect = cvs.parentElement.getBoundingClientRect();
+  cvs.width  = rect.width  - 32;
+  cvs.height = Math.max(80, rect.height - 50);
+  return cvs;
+}
+
+function drawAllCanvases(currentH) {
+  drawDivisionCanvas(currentH);
+  drawHealthCanvas();
+  drawBloodCanvas();
+  drawImmuneCanvas();
+}
+
+// ── Canvas 1: animated cell mitosis dots ──
+let cellParticles = [];
+function initCells() {
+  cellParticles = [];
+  for (let i = 0; i < 80; i++) {
+    cellParticles.push({
+      x: Math.random(), y: Math.random(),
+      vx: (Math.random() - 0.5) * 0.002,
+      vy: (Math.random() - 0.5) * 0.002,
+      r: 3 + Math.random() * 4,
+      phase: Math.random() * Math.PI * 2,
+      dividing: false, divProgress: 0,
+    });
+  }
+}
+initCells();
+
+function drawDivisionCanvas(currentH) {
+  const cvs = setupCanvas('cvDivision');
+  const ctx = cvs.getContext('2d');
+  const W = cvs.width, H = cvs.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const rate = (100 - state.slowdown) / 100;
+  const totalCells = Math.max(5, Math.floor(80 * rate * (currentH['gut'] / 100 * 0.4 + currentH['blood'] / 100 * 0.4 + 0.2)));
+
+  ctx.fillStyle = '#0a0e1a';
+  ctx.fillRect(0, 0, W, H);
+
+  const now = Date.now() / 1000;
+
+  for (let i = 0; i < Math.min(cellParticles.length, totalCells); i++) {
+    const c = cellParticles[i];
+    c.x = ((c.x + c.vx * rate + 1) % 1);
+    c.y = ((c.y + c.vy * rate + 1) % 1);
+
+    const px = c.x * W, py = c.y * H;
+    const pulse = Math.sin(now * 2 + c.phase) * 0.3 + 0.7;
+
+    if (rate > 0.3 && Math.random() < 0.002 * rate) c.dividing = true;
+    if (c.dividing) {
+      c.divProgress += 0.04 * rate;
+      if (c.divProgress >= 1) { c.dividing = false; c.divProgress = 0; }
+      const off = c.divProgress * c.r * 1.5;
+      ctx.beginPath();
+      ctx.arc(px - off, py, c.r * (1 - c.divProgress * 0.3), 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(140, 70%, 55%, ${pulse * 0.9})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(px + off, py, c.r * (1 - c.divProgress * 0.3), 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(200, 70%, 60%, ${pulse * 0.9})`;
+      ctx.fill();
+    } else {
+      const hue = 140 + (1 - rate) * 120;
+      ctx.beginPath();
+      ctx.arc(px, py, c.r, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${hue}, 70%, 55%, ${pulse * 0.8})`;
+      ctx.fill();
+    }
+  }
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '11px system-ui';
+  ctx.fillText(`Active cells: ${totalCells}  |  Division rate: ${Math.round(rate * 100)}%`, 8, H - 8);
+}
+
+// ── Canvas 2: line chart of system health ──
+function drawHealthCanvas() {
+  const cvs = setupCanvas('cvHealth');
+  const ctx = cvs.getContext('2d');
+  const W = cvs.width, H = cvs.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a0e1a';
+  ctx.fillRect(0, 0, W, H);
+
+  if (state.history.length < 2) {
+    ctx.fillStyle = '#64748b';
+    ctx.font = '12px system-ui';
+    ctx.fillText('Run the simulation to see health trends', W/2 - 120, H/2);
+    return;
+  }
+
+  const maxDay = Math.max(state.day, 60);
+  const pad = { l: 30, r: 10, t: 10, b: 25 };
+  const pw = W - pad.l - pad.r;
+  const ph = H - pad.t - pad.b;
+
+  // grid
+  ctx.strokeStyle = '#1f2d45';
+  ctx.lineWidth = 1;
+  for (let g = 0; g <= 4; g++) {
+    const y = pad.t + ph * g / 4;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + pw, y); ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px system-ui';
+    ctx.fillText((100 - g * 25) + '%', 2, y + 3);
+  }
+
+  // lines per system
+  SYSTEMS.slice(0, 5).forEach(sys => {
+    ctx.beginPath();
+    state.history.forEach((pt, i) => {
+      const x = pad.l + (pt.day / maxDay) * pw;
+      const y = pad.t + (1 - pt.h[sys.id] / 100) * ph;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = sys.color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
+
+  // x axis labels
+  ctx.fillStyle = '#64748b'; ctx.font = '9px system-ui';
+  for (let d = 0; d <= maxDay; d += 20) {
+    const x = pad.l + (d / maxDay) * pw;
+    ctx.fillText('D' + d, x - 6, H - 6);
+  }
+}
+
+// ── Canvas 3: blood cell bar chart ──
+function drawBloodCanvas() {
+  const cvs = setupCanvas('cvBlood');
+  const ctx = cvs.getContext('2d');
+  const W = cvs.width, H = cvs.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a0e1a'; ctx.fillRect(0, 0, W, H);
+
+  const h  = allHealths(state.day, state.slowdown);
+  const rbc = h['blood'];
+  const plt = Math.max(0, 100 - (100 - h['blood']) * 0.8);  // platelets deplete faster
+  const hgb = rbc;
+
+  const bars = [
+    { label: 'RBC (oxygen)', val: rbc,   color: '#ef4444', norm: '4.5–5.5M/μL' },
+    { label: 'Platelets',    val: plt,   color: '#f97316', norm: '150–400K/μL' },
+    { label: 'Hemoglobin',   val: hgb,   color: '#f59e0b', norm: '13.5–17 g/dL' },
+  ];
+
+  const barH = 28, gap = 14, padL = 8, padT = 12;
+  bars.forEach((b, i) => {
+    const y = padT + i * (barH + gap);
+    const maxW = W - padL - 60;
+    const fillW = b.val / 100 * maxW;
+
+    ctx.fillStyle = '#1f2d45';
+    ctx.beginPath(); ctx.roundRect(padL, y, maxW, barH, 4); ctx.fill();
+
+    ctx.fillStyle = healthColor(b.val);
+    if (fillW > 0) { ctx.beginPath(); ctx.roundRect(padL, y, fillW, barH, 4); ctx.fill(); }
+
+    ctx.fillStyle = '#e2e8f0'; ctx.font = '10px system-ui';
+    ctx.fillText(b.label, padL + 6, y + 12);
+    ctx.fillStyle = '#94a3b8'; ctx.font = '9px system-ui';
+    ctx.fillText(b.norm, padL + 6, y + 24);
+
+    ctx.fillStyle = healthColor(b.val); ctx.font = 'bold 11px system-ui';
+    ctx.fillText(Math.round(b.val) + '%', W - 52, y + 17);
+  });
+}
+
+// ── Canvas 4: immune radar-style display ──
+function drawImmuneCanvas() {
+  const cvs = setupCanvas('cvImmune');
+  const ctx = cvs.getContext('2d');
+  const W = cvs.width, H = cvs.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a0e1a'; ctx.fillRect(0, 0, W, H);
+
+  const h = allHealths(state.day, state.slowdown);
+  const imm = h['immune'];
+  const neu = Math.max(0, imm * 1.1 - 10);   // neutrophils
+  const lym = Math.max(0, imm * 0.9 + 5);    // lymphocytes
+  const mac = Math.max(0, imm * 0.95);        // macrophages
+
+  const cx = W / 2, cy = H / 2 - 8;
+  const maxR = Math.min(cx, cy) - 20;
+
+  // rings
+  [0.25, 0.5, 0.75, 1.0].forEach(r => {
+    ctx.beginPath(); ctx.arc(cx, cy, maxR * r, 0, Math.PI * 2);
+    ctx.strokeStyle = r === 1 ? '#374151' : '#1f2d45';
+    ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '8px system-ui';
+    ctx.fillText(Math.round(r * 100) + '%', cx + maxR * r + 2, cy);
+  });
+
+  const spokes = [
+    { label: 'Neutrophils', v: neu, angle: -Math.PI/2 },
+    { label: 'Lymphocytes', v: lym, angle: -Math.PI/2 + Math.PI * 2/3 },
+    { label: 'Macrophages', v: mac, angle: -Math.PI/2 + Math.PI * 4/3 },
+  ];
+
+  // polygon
+  ctx.beginPath();
+  spokes.forEach((sp, i) => {
+    const r = (sp.v / 100) * maxR;
+    const x = cx + r * Math.cos(sp.angle);
+    const y = cy + r * Math.sin(sp.angle);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(59,130,246,0.25)';
+  ctx.fill();
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2; ctx.stroke();
+
+  // labels
+  spokes.forEach(sp => {
+    const r = maxR + 14;
+    const x = cx + r * Math.cos(sp.angle);
+    const y = cy + r * Math.sin(sp.angle);
+    ctx.fillStyle = '#94a3b8'; ctx.font = '9px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(sp.label, x, y);
+    ctx.fillStyle = healthColor(sp.v); ctx.font = 'bold 9px system-ui';
+    ctx.fillText(Math.round(sp.v) + '%', x, y + 11);
+  });
+  ctx.textAlign = 'left';
+
+  // ANC indicator
+  const anc = Math.round(neu / 100 * 7000); // cells/μL rough equiv
+  ctx.fillStyle = anc < 500 ? '#ef4444' : anc < 1000 ? '#f59e0b' : '#22c55e';
+  ctx.font = 'bold 11px system-ui';
+  ctx.fillText(`ANC: ~${anc.toLocaleString()}/μL`, 8, H - 8);
+}
+
+// ─────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────
+window.addEventListener('resize', () => updateAll());
+updateAll();
+
+// gentle animation loop even when not running (cell canvas)
+let idleFrame;
+function idleLoop() {
+  if (!state.running) {
+    const h = allHealths(state.day, state.slowdown);
+    drawDivisionCanvas(h);
+  }
+  idleFrame = requestAnimationFrame(idleLoop);
+}
+idleLoop();
+</script>
+</body>
+</html>
