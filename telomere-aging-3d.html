@@ -4,1173 +4,676 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Human Aging &amp; Telomere Dynamics — 3D Simulation</title>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
-  }
-}
-</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#060a14;--panel:rgba(10,16,32,0.88);--border:rgba(255,255,255,0.08);--accent:#818cf8;--male:#60a5fa;--female:#f472b6;--ok:#4ade80;--warn:#fbbf24;--danger:#f87171;--text:#e2e8f0;--muted:#64748b}
-body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column}
-canvas#scene{position:absolute;inset:0;width:100%;height:100%;z-index:0}
-.viewport{flex:1;position:relative;overflow:hidden}
-
-/* ── FLOATING PANELS ── */
-.fp{position:absolute;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;backdrop-filter:blur(20px);z-index:10;pointer-events:auto;font-size:12px;line-height:1.5;max-width:320px;transition:opacity .3s}
-.fp h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px}
-.fp .big{font-size:22px;font-weight:800;line-height:1}
-
-/* Top-left: scenario + controls */
-#panelControls{top:12px;left:12px;width:280px}
-select{width:100%;padding:6px 8px;border:1px solid var(--border);background:rgba(0,0,0,.4);color:var(--text);border-radius:6px;font-size:12px;margin:4px 0 8px}
-.slider-row{display:flex;align-items:center;gap:6px;margin:3px 0}
-.slider-row label{min-width:65px;font-size:11px;color:#94a3b8}
-.slider-row input[type=range]{flex:1;accent-color:var(--accent);height:4px}
-.slider-row .v{min-width:32px;text-align:right;font-weight:700;font-size:11px;color:var(--accent)}
-
-/* Top-right: telomere data */
-#panelTelo{top:12px;right:12px;width:260px}
-.telo-row{display:flex;align-items:center;gap:8px;margin:4px 0}
-.telo-row .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.telo-row .lbl{flex:1;font-size:11px}
-.telo-row .val{font-weight:800;font-size:14px}
-.telo-bar{height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;margin:6px 0;position:relative}
-.telo-fill{height:100%;border-radius:4px;transition:width .3s,background .3s}
-.telo-mark{position:absolute;top:-2px;bottom:-2px;width:2px;border-radius:1px;background:var(--warn);z-index:1}
-
-/* Bottom-left: system health */
-#panelHealth{bottom:72px;left:12px;width:240px}
-.health-row{display:flex;align-items:center;gap:6px;margin:2px 0;font-size:11px}
-.health-row .icon{width:16px;text-align:center}
-.health-row .name{flex:1}
-.health-row .bar{width:60px;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
-.health-row .fill{height:100%;border-radius:3px;transition:width .4s,background .4s}
-.health-row .pct{min-width:28px;text-align:right;font-weight:700}
-
-/* Bottom-right: science info */
-#panelInfo{bottom:72px;right:12px;width:340px;max-height:320px;overflow-y:auto}
-#panelInfo::-webkit-scrollbar{width:4px}
-#panelInfo::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
-.info-title{font-size:14px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px}
-.pill{font-size:9px;padding:2px 8px;border-radius:99px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
-.pill-ok{background:rgba(74,222,128,.15);color:var(--ok)}.pill-warn{background:rgba(251,191,36,.15);color:var(--warn)}
-.pill-danger{background:rgba(248,113,113,.15);color:var(--danger)}.pill-boost{background:rgba(129,140,248,.15);color:var(--accent)}
-.info-body{font-size:11.5px;color:#94a3b8;line-height:1.65}
-.info-body strong{color:var(--text)}
-.info-section{margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
-.info-section h4{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px}
-
-/* Center: figure labels */
-.figure-label{position:absolute;z-index:5;text-align:center;pointer-events:none;transform:translateX(-50%)}
-.figure-label .sex{font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
-.figure-label .age-info{font-size:10px;color:#94a3b8;margin-top:1px}
-.figure-label .height-info{font-size:10px;color:var(--muted)}
-#labelMale .sex{color:var(--male)}
-#labelFemale .sex{color:var(--female)}
-
-/* Center top: age display */
-#ageOverlay{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:10;text-align:center;pointer-events:none}
-#ageOverlay .age-num{font-size:48px;font-weight:900;color:var(--accent);line-height:1;text-shadow:0 0 40px rgba(129,140,248,.3)}
-#ageOverlay .age-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
-#ageOverlay .stage{font-size:13px;color:#94a3b8;margin-top:2px}
-
-/* Download buttons */
-.dl-row{position:absolute;top:12px;right:290px;z-index:10;display:flex;gap:6px}
-.dl-row button{padding:5px 12px;font-size:11px;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:6px;cursor:pointer;backdrop-filter:blur(10px);font-weight:600}
-.dl-row button:hover{background:rgba(129,140,248,.2)}
-.dl-row .primary{background:rgba(129,140,248,.25);border-color:rgba(129,140,248,.4)}
-
-/* ── TIMELINE BAR ── */
-.timeline{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--panel);border-top:1px solid var(--border);z-index:10;backdrop-filter:blur(20px)}
-.tl-btns{display:flex;gap:3px}
-.tl-btns button{width:30px;height:26px;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:5px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:background .15s}
-.tl-btns button:hover{background:rgba(255,255,255,.08)}
-.tl-btns button.act{background:var(--accent);border-color:var(--accent);color:#fff}
-.tl-track{flex:1}
-.tl-track input[type=range]{width:100%;accent-color:var(--accent)}
-.tl-marks{display:flex;justify-content:space-between;margin-top:1px}
-.tl-marks span{font-size:9px;color:var(--muted)}
-.tl-scenario{display:flex;align-items:center;gap:6px}
-.tl-scenario label{font-size:10px;color:var(--muted);white-space:nowrap}
-.tl-scenario select{width:auto;margin:0;padding:4px 6px;font-size:11px}
+:root{--bg:#060a14;--panel:rgba(10,16,32,0.92);--border:rgba(255,255,255,0.07);--accent:#818cf8;--male:#60a5fa;--female:#f472b6;--ok:#4ade80;--warn:#fbbf24;--danger:#f87171;--text:#e2e8f0;--muted:#64748b}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+canvas#scene{position:absolute;inset:0;width:100%;height:100%}
+.vp{flex:1;position:relative;overflow:hidden}
+.fp{position:absolute;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;backdrop-filter:blur(16px);z-index:10;font-size:11.5px;line-height:1.5;transition:opacity .3s}
+.fp h3{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:5px}
+select{width:100%;padding:5px;border:1px solid var(--border);background:rgba(0,0,0,.5);color:var(--text);border-radius:5px;font-size:11px;margin:3px 0 6px}
+.sr{display:flex;align-items:center;gap:5px;margin:2px 0}
+.sr label{min-width:65px;font-size:10.5px;color:#94a3b8}
+.sr input[type=range]{flex:1;accent-color:var(--accent);height:3px}
+.sr .v{min-width:30px;text-align:right;font-weight:700;font-size:10.5px;color:var(--accent)}
+#panC{top:10px;left:10px;width:260px}
+#panT{top:10px;right:10px;width:240px}
+.tbar{height:7px;background:rgba(255,255,255,.05);border-radius:4px;overflow:hidden;position:relative;margin:5px 0}
+.tbar .f{height:100%;border-radius:4px;transition:width .3s,background .3s;position:absolute}
+.tbar .mk{position:absolute;top:-1px;bottom:-1px;width:2px;border-radius:1px;background:var(--warn);z-index:1}
+#panH{bottom:66px;left:10px;width:220px}
+.hr{display:flex;align-items:center;gap:5px;margin:1px 0;font-size:10.5px}
+.hr .nm{flex:1}.hr .br{width:50px;height:4px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden}
+.hr .fl{height:100%;border-radius:2px;transition:width .4s,background .4s}
+.hr .pc{min-width:26px;text-align:right;font-weight:700;font-size:10px}
+#panI{bottom:66px;right:10px;width:320px;max-height:300px;overflow-y:auto}
+#panI::-webkit-scrollbar{width:3px}#panI::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+.it{font-size:13px;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:5px}
+.pl{font-size:8px;padding:2px 7px;border-radius:99px;font-weight:700;text-transform:uppercase}
+.pl-ok{background:rgba(74,222,128,.12);color:var(--ok)}.pl-w{background:rgba(251,191,36,.12);color:var(--warn)}
+.pl-d{background:rgba(248,113,113,.12);color:var(--danger)}.pl-b{background:rgba(129,140,248,.12);color:var(--accent)}
+.ib{font-size:11px;color:#94a3b8;line-height:1.65}
+.ib strong{color:var(--text)}
+.is{margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+.is h4{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px}
+#ageO{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:10;text-align:center;pointer-events:none}
+#ageO .an{font-size:44px;font-weight:900;color:var(--accent);line-height:1;text-shadow:0 0 30px rgba(129,140,248,.25)}
+#ageO .al{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+#ageO .as{font-size:12px;color:#94a3b8;margin-top:1px}
+.fl-lbl{position:absolute;z-index:5;text-align:center;pointer-events:none;transform:translateX(-50%)}
+.fl-lbl .sx{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.fl-lbl .si{font-size:9.5px;color:#94a3b8;margin-top:1px}
+#lM .sx{color:var(--male)}#lF .sx{color:var(--female)}
+.dlr{position:absolute;top:10px;right:260px;z-index:10;display:flex;gap:5px}
+.dlr button{padding:4px 10px;font-size:10.5px;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:5px;cursor:pointer;backdrop-filter:blur(8px);font-weight:600}
+.dlr button:hover{background:rgba(129,140,248,.18)}.dlr .pr{background:rgba(129,140,248,.2);border-color:rgba(129,140,248,.35)}
+.tl{display:flex;align-items:center;gap:7px;padding:7px 14px;background:var(--panel);border-top:1px solid var(--border);z-index:10;backdrop-filter:blur(16px)}
+.tb{display:flex;gap:2px}
+.tb button{width:28px;height:24px;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:4px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center}
+.tb button:hover{background:rgba(255,255,255,.07)}.tb button.a{background:var(--accent);border-color:var(--accent);color:#fff}
+.tt{flex:1}.tt input[type=range]{width:100%;accent-color:var(--accent)}
+.tm{display:flex;justify-content:space-between;margin-top:1px}.tm span{font-size:8px;color:var(--muted)}
+.ts{display:flex;align-items:center;gap:5px}.ts label{font-size:9px;color:var(--muted);white-space:nowrap}.ts select{width:auto;margin:0;padding:3px 5px;font-size:10px}
 </style>
 </head>
 <body>
+<div class="vp">
+<canvas id="scene"></canvas>
+<div id="ageO"><div class="an" id="aN">0</div><div class="al">years old</div><div class="as" id="aS">Newborn</div></div>
+<div class="dlr"><button onclick="dlReport()">Export Report</button><button class="pr" onclick="dlSim()">Download Simulation</button></div>
+<div class="fl-lbl" id="lM"><div class="sx">Male</div><div class="si" id="mI"></div></div>
+<div class="fl-lbl" id="lF"><div class="sx">Female</div><div class="si" id="fI"></div></div>
 
-<div class="viewport">
-  <canvas id="scene"></canvas>
+<div class="fp" id="panC">
+<h3>Scenario &amp; Controls</h3>
+<select id="selS" onchange="setSc(this.value)"><option value="normal">Normal Aging</option><option value="telomerase">Telomerase Reactivation</option><option value="selective">Selective Division Control</option><option value="methylation">DNA Methylation Reversal</option><option value="combined">Combined Intervention</option></select>
+<div class="sr"><label>Cell Division</label><input type="range" id="sD" min="0" max="100" value="100"><span class="v" id="vD">100%</span></div>
+<div class="sr"><label>Telomerase</label><input type="range" id="sT" min="0" max="100" value="0"><span class="v" id="vT">0%</span></div>
+<div class="sr"><label>Meth. Reversal</label><input type="range" id="sM" min="0" max="100" value="0"><span class="v" id="vM">0%</span></div>
+<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+<h3>Base Pair Budget</h3>
+<div style="font-size:10px;color:#94a3b8;line-height:1.55">
+<div style="display:flex;justify-content:space-between"><span style="color:var(--warn)">Mouse</span><span>7,000 bp · 2 yr = 14,000 bp·yr</span></div>
+<div style="display:flex;justify-content:space-between"><span style="color:var(--male)">Human</span><span>10,500 bp · ~30 bp/yr adult loss</span></div>
+<div style="display:flex;justify-content:space-between"><span style="color:var(--ok)">Attrition</span><span>Mouse 48× faster → human 48× longer</span></div>
+<div id="bpP" style="color:var(--accent);font-weight:700;margin-top:3px">Reserves: ~75 years of capacity</div>
+</div></div></div>
 
-  <!-- Age overlay -->
-  <div id="ageOverlay">
-    <div class="age-num" id="ageNum">0</div>
-    <div class="age-lbl">years old</div>
-    <div class="stage" id="ageStage">Newborn</div>
-  </div>
+<div class="fp" id="panT">
+<h3>Telomere Status</h3>
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+<div><span style="color:var(--male);font-size:10px">Male </span><strong id="tMV" style="font-size:13px">10,500 bp</strong></div>
+<div><span style="color:var(--female);font-size:10px">Female </span><strong id="tFV" style="font-size:13px">10,800 bp</strong></div>
+</div>
+<div class="tbar"><div class="f" id="tBM" style="width:81%;background:var(--male);top:0;height:50%;opacity:.8"></div><div class="f" id="tBF" style="width:83%;background:var(--female);bottom:0;height:50%;opacity:.8"></div><div class="mk" style="left:38%"></div></div>
+<div style="display:flex;justify-content:space-between;font-size:8px;color:var(--muted)"><span>0</span><span style="color:var(--warn)">5,000 threshold</span><span>13,000 bp</span></div>
+<div style="margin-top:5px;font-size:10px;color:#94a3b8;line-height:1.5">
+Epigenetic age: <strong id="eAV" style="color:var(--accent)">0</strong> ·
+Methylation: <strong id="mDV" style="color:#e879f9">0%</strong> ·
+Senescent: <strong id="snV" style="color:var(--warn)">~0%</strong>
+</div></div>
 
-  <!-- Download -->
-  <div class="dl-row">
-    <button onclick="downloadReport()">Export Report</button>
-    <button class="primary" onclick="downloadSim()">Download Simulation</button>
-  </div>
-
-  <!-- Figure labels (positioned dynamically) -->
-  <div class="figure-label" id="labelMale"><div class="sex">Male</div><div class="age-info" id="maleInfo"></div><div class="height-info" id="maleHeight"></div></div>
-  <div class="figure-label" id="labelFemale"><div class="sex">Female</div><div class="age-info" id="femaleInfo"></div><div class="height-info" id="femaleHeight"></div></div>
-
-  <!-- Controls panel -->
-  <div class="fp" id="panelControls">
-    <h3>Intervention Controls</h3>
-    <div class="slider-row"><label>Cell Division</label><input type="range" id="sDivRate" min="0" max="100" value="100"><span class="v" id="vDivRate">100%</span></div>
-    <div class="slider-row"><label>Telomerase</label><input type="range" id="sTeloAct" min="0" max="100" value="0"><span class="v" id="vTeloAct">0%</span></div>
-    <div class="slider-row"><label>Methylation Rev.</label><input type="range" id="sMethRev" min="0" max="100" value="0"><span class="v" id="vMethRev">0%</span></div>
-    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
-      <h3>Base Pair Budget Model</h3>
-      <div style="font-size:10.5px;color:#94a3b8;line-height:1.6">
-        <div style="display:flex;justify-content:space-between"><span style="color:var(--warn)">Mouse</span><span>7,000 bp · 2 yr = 14,000 bp·yr</span></div>
-        <div style="display:flex;justify-content:space-between"><span style="color:var(--male)">Human</span><span>10,500 bp · ~73 bp/yr loss</span></div>
-        <div style="display:flex;justify-content:space-between"><span style="color:var(--ok)">Ratio</span><span>48× slower → 48× longer life</span></div>
-        <div id="bpPredict" style="color:var(--accent);font-weight:700;margin-top:4px">Reserves: ~75 years of division capacity</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Telomere panel -->
-  <div class="fp" id="panelTelo">
-    <h3>Telomere Status</h3>
-    <div class="telo-row"><div class="dot" style="background:var(--male)"></div><div class="lbl">Male</div><div class="val" id="teloMV" style="color:var(--male)">10,500 bp</div></div>
-    <div class="telo-row"><div class="dot" style="background:var(--female)"></div><div class="lbl">Female</div><div class="val" id="teloFV" style="color:var(--female)">10,800 bp</div></div>
-    <div class="telo-bar">
-      <div class="telo-fill" id="teloBarM" style="width:81%;background:var(--male);position:absolute;top:0;height:50%;opacity:.8"></div>
-      <div class="telo-fill" id="teloBarF" style="width:83%;background:var(--female);position:absolute;bottom:0;height:50%;opacity:.8"></div>
-      <div class="telo-mark" id="teloThresh" style="left:38%"></div>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted)">
-      <span>0 bp</span><span style="color:var(--warn)">threshold 5,000</span><span>13,000 bp</span>
-    </div>
-    <div style="margin-top:6px;font-size:10.5px;color:#94a3b8;line-height:1.5">
-      <div>Epigenetic age: <strong id="epiAgeV" style="color:var(--accent)">0</strong></div>
-      <div>Methylation drift: <strong id="methV" style="color:#e879f9">0%</strong></div>
-      <div>Senescent cells: <strong id="senV" style="color:var(--warn)">~0%</strong></div>
-    </div>
-  </div>
-
-  <!-- Health panel -->
-  <div class="fp" id="panelHealth">
-    <h3>System Health</h3>
-    <div id="healthRows"></div>
-  </div>
-
-  <!-- Info panel -->
-  <div class="fp" id="panelInfo">
-    <div class="info-title" id="infoTitle">Newborn <span class="pill pill-ok">Healthy</span></div>
-    <div class="info-body" id="infoBody"></div>
-  </div>
+<div class="fp" id="panH"><h3>System Health</h3><div id="hR"></div></div>
+<div class="fp" id="panI"><div class="it" id="iT">Newborn <span class="pl pl-ok">Healthy</span></div><div class="ib" id="iB"></div></div>
 </div>
 
-<!-- Timeline -->
-<div class="timeline">
-  <div class="tl-btns">
-    <button id="bRF" onclick="setPB(-3)" title="Fast reverse">⏪</button>
-    <button id="bR" onclick="setPB(-1)" title="Reverse">◀</button>
-    <button id="bP" onclick="setPB(0)" class="act" title="Pause">⏸</button>
-    <button id="bF" onclick="setPB(1)" title="Play">▶</button>
-    <button id="bFF" onclick="setPB(3)" title="Fast forward">⏩</button>
-  </div>
-  <div class="tl-track">
-    <input type="range" id="ageSlider" min="0" max="80" value="0" step="0.05" oninput="setAge(+this.value)">
-    <div class="tl-marks"><span>Birth</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span><span>60</span><span>70</span><span>80</span></div>
-  </div>
-  <div class="tl-scenario">
-    <label>Scenario:</label>
-    <select id="selScenario" onchange="setScenario(this.value)">
-      <option value="normal">Normal Aging</option>
-      <option value="telomerase">Telomerase Reactivation</option>
-      <option value="selective">Selective Division Control</option>
-      <option value="methylation">DNA Methylation Reversal</option>
-      <option value="combined">Combined Intervention</option>
-    </select>
-  </div>
+<div class="tl">
+<div class="tb">
+<button id="bRF" onclick="setPB(-3)">⏪</button><button id="bR" onclick="setPB(-1)">◀</button>
+<button id="bP" onclick="setPB(0)" class="a">⏸</button><button id="bF" onclick="setPB(1)">▶</button>
+<button id="bFF" onclick="setPB(3)">⏩</button>
+</div>
+<div class="tt">
+<input type="range" id="aSlider" min="0" max="80" value="0" step="0.05" oninput="setAge(+this.value)">
+<div class="tm"><span>Birth</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span><span>60</span><span>70</span><span>80</span></div>
+</div>
+<div class="ts"><label>Scenario:</label><select id="selS2" onchange="setSc(this.value)"><option value="normal">Normal Aging</option><option value="telomerase">Telomerase Unlock</option><option value="selective">Selective Control</option><option value="methylation">Methylation Reversal</option><option value="combined">Combined</option></select></div>
 </div>
 
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-/* ══════════════════════════════════════════════════════════
-   SECTION 1 — COMPREHENSIVE BIOLOGY ENGINE
-   Real data from peer-reviewed literature
-   ══════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════
+   BIOLOGY ENGINE
+   ══════════════════════════════════════════ */
+function lt(tbl,x){if(x<=tbl[0][0])return tbl[0][1];if(x>=tbl[tbl.length-1][0])return tbl[tbl.length-1][1];for(let i=1;i<tbl.length;i++)if(x<=tbl[i][0]){const t=(x-tbl[i-1][0])/(tbl[i][0]-tbl[i-1][0]);return tbl[i-1][1]+t*(tbl[i][1]-tbl[i-1][1])}return tbl[tbl.length-1][1]}
 
-const BIO = {
+const BIO={
+heightCm(a,s){return lt(s==='m'?[[0,49.9],[.5,67.6],[1,75.7],[2,87.8],[3,96.1],[5,110],[7,122],[10,138],[12,149],[14,164],[16,173],[18,176],[25,177],[40,176.5],[55,175],[65,173],[75,170],[80,168]]:[[0,49.1],[.5,65.7],[1,74],[2,86.4],[3,95.1],[5,109],[7,122],[10,138],[12,151],[14,160],[16,163],[18,163.5],[25,164],[40,163],[55,162],[65,160],[75,157],[80,155]],a)},
+headRatio(a){return lt([[0,.25],[1,.222],[3,.20],[6,.167],[12,.143],[18,.133],[30,.128],[80,.128]],a)},
+shoulderF(a,s){return lt(s==='m'?[[0,.21],[5,.22],[12,.24],[16,.27],[20,.28],[30,.28],[50,.275],[70,.265],[80,.255]]:[[0,.21],[5,.22],[12,.23],[16,.24],[20,.245],[30,.245],[50,.24],[70,.235],[80,.225]],a)},
+hipF(a,s){return lt(s==='m'?[[0,.19],[10,.185],[18,.19],[30,.19],[50,.195],[80,.20]]:[[0,.19],[10,.19],[14,.215],[18,.235],[30,.24],[50,.245],[80,.24]],a)},
+muscle(a,s){return lt(s==='m'?[[0,.2],[5,.32],[12,.5],[18,.8],[25,1],[35,1],[45,.92],[55,.82],[65,.70],[75,.55],[80,.48]]:[[0,.2],[5,.32],[12,.48],[18,.7],[25,.8],[35,.8],[45,.75],[55,.68],[65,.58],[75,.46],[80,.40]],a)},
+fat(a,s){return lt(s==='m'?[[0,.42],[2,.35],[10,.22],[18,.18],[25,.20],[40,.25],[55,.28],[70,.24],[80,.22]]:[[0,.42],[2,.35],[10,.24],[18,.25],[25,.28],[40,.32],[55,.35],[70,.33],[80,.28]],a)},
+posture(a){return a<45?0:lt([[45,0],[55,2],[65,5],[75,10],[80,15]],a)},
+hairGray(a){return Math.max(0,lt([[0,0],[28,0],[35,.05],[45,.25],[55,.5],[65,.75],[75,.92],[80,.98]],a))},
+hairDens(a,s){return lt(s==='m'?[[0,.6],[5,1],[20,1],[35,.92],[45,.78],[55,.62],[65,.48],[75,.38],[80,.30]]:[[0,.6],[5,1],[20,1],[35,.97],[45,.92],[55,.85],[65,.75],[75,.65],[80,.55]],a)},
+skinH(a){return lt([[0,1],[20,1],[30,.95],[40,.88],[50,.78],[60,.66],[70,.52],[80,.40]],a)},
+breastDev(a){return a<10?0:a<16?(a-10)/6:1},
 
-  // ── Growth data (WHO / CDC composites) ──
-  heightCm(age, sex) {
-    const m = [[0,49.9],[0.5,67.6],[1,75.7],[2,87.8],[3,96.1],[5,110],[7,122],[10,138],[12,149],[14,164],[16,173],[18,176],[25,177],[40,176.5],[55,175],[65,173],[75,170],[80,168]];
-    const f = [[0,49.1],[0.5,65.7],[1,74],[2,86.4],[3,95.1],[5,109],[7,122],[10,138],[12,151],[14,160],[16,163],[18,163.5],[25,164],[40,163],[55,162],[65,160],[75,157],[80,155]];
-    return lerpTable(sex==='m'?m:f, age);
-  },
-
-  // ── Head-to-body ratio (in head-heights) ──
-  headRatio(age) {
-    return lerpTable([[0,.25],[1,.22],[3,.20],[6,.167],[12,.143],[18,.133],[30,.125],[80,.125]], age);
-  },
-
-  // ── Shoulder width as fraction of height ──
-  shoulderFrac(age, sex) {
-    const m = [[0,.22],[5,.22],[10,.23],[14,.25],[18,.27],[25,.28],[40,.28],[60,.27],[80,.26]];
-    const f = [[0,.22],[5,.22],[10,.23],[14,.24],[18,.24],[25,.245],[40,.245],[60,.24],[80,.23]];
-    return lerpTable(sex==='m'?m:f, age);
-  },
-
-  hipFrac(age, sex) {
-    const m = [[0,.20],[10,.18],[18,.19],[30,.19],[60,.20],[80,.20]];
-    const f = [[0,.20],[10,.19],[14,.21],[18,.23],[30,.24],[50,.245],[80,.24]];
-    return lerpTable(sex==='m'?m:f, age);
-  },
-
-  muscleFactor(age, sex) {
-    const m = [[0,.25],[5,.35],[12,.50],[18,.80],[25,1],[35,1],[45,.92],[55,.82],[65,.70],[75,.58],[80,.50]];
-    const f = [[0,.25],[5,.35],[12,.48],[18,.70],[25,.80],[35,.80],[45,.75],[55,.68],[65,.58],[75,.48],[80,.42]];
-    return lerpTable(sex==='m'?m:f, age);
-  },
-
-  bodyFatFactor(age, sex) {
-    const m = [[0,.4],[2,.35],[10,.22],[18,.18],[25,.20],[40,.25],[55,.28],[70,.25],[80,.22]];
-    const f = [[0,.4],[2,.35],[10,.24],[18,.25],[25,.28],[40,.32],[55,.35],[70,.33],[80,.28]];
-    return lerpTable(sex==='m'?m:f, age);
-  },
-
-  postureLean(age) {
-    if(age<45)return 0;
-    return lerpTable([[45,0],[55,2],[65,5],[75,10],[80,14]],age);
-  },
-
-  hairGray(age) {
-    return Math.max(0, lerpTable([[0,0],[28,0],[35,.05],[45,.25],[55,.5],[65,.75],[75,.92],[80,.98]],age));
-  },
-
-  hairDensity(age, sex) {
-    const m = [[0,.7],[5,1],[20,1],[30,.95],[40,.85],[50,.72],[60,.6],[70,.50],[80,.4]];
-    const f = [[0,.7],[5,1],[20,1],[30,1],[40,.95],[50,.90],[60,.82],[70,.72],[80,.62]];
-    return lerpTable(sex==='m'?m:f, age);
-  },
-
-  skinHealth(age) {
-    return lerpTable([[0,1],[20,1],[30,.95],[40,.88],[50,.78],[60,.66],[70,.52],[80,.40]],age);
-  },
-
-  // ── Telomere Biology ──
-  // Biphasic: rapid loss in childhood (high division for growth), slower in adulthood
-  telomereLength(age, sex, scn) {
-    const birth = sex==='m' ? 10500 : 10800;
-    let length = birth;
-
-    // Childhood rapid loss (0-4): ~270 bp/yr
-    if (age <= 4) length -= age * 270;
-    // Youth (4-20): ~50 bp/yr
-    else if (age <= 20) length -= 4*270 + (age-4)*50;
-    // Adult: ~30 bp/yr (males slightly faster)
-    else {
-      const adultRate = sex==='m' ? 32 : 26;
-      length -= 4*270 + 16*50 + (age-20)*adultRate;
-      // Post-menopause acceleration for females
-      if (sex==='f' && age > 50) length -= (age-50)*12;
-    }
-
-    // Division rate modifier
-    const divMod = (100 - SIM.divRate) / 100;
-    length += divMod * age * 20;
-
-    // Telomerase intervention
-    if (scn==='telomerase'||scn==='combined') {
-      const act = SIM.teloAct/100;
-      length += act * Math.max(0,age-2) * 85;
-    }
-    // Selective modulation savings
-    if (scn==='selective'||scn==='combined') {
-      if (SIM.divRate < 90) length += (90-SIM.divRate)/100 * age * 18;
-    }
-
-    return Math.max(0, Math.min(13000, Math.round(length)));
-  },
-
-  methylationDrift(age, scn) {
-    // Horvath clock approximation
-    let drift = age <= 20
-      ? (age/20)*30
-      : 30 + (age-20)/60 * 55;
-    drift = Math.min(95, drift);
-    if (scn==='methylation'||scn==='combined') drift *= (1 - SIM.methRev/100 * 0.65);
-    return Math.max(0, drift);
-  },
-
-  epigeneticAge(age, scn) {
-    const drift = this.methylationDrift(age, scn);
-    let ea = drift / 85 * age;
-    return Math.max(0, Math.round(ea));
-  },
-
-  senescentCells(age, scn) {
-    // Exponential accumulation
-    let pct = Math.min(45, Math.pow(age/80, 2.5) * 35);
-    if (scn==='telomerase'||scn==='combined') pct *= (1 - SIM.teloAct/200);
-    if (scn==='methylation'||scn==='combined') pct *= (1 - SIM.methRev/200);
-    return Math.max(0, pct);
-  },
-
-  systemHealth(age, sex, scn) {
-    const telo = this.telomereLength(age, sex, scn);
-    const tf = Math.max(0, (telo-3500)/(10500-3500));
-    const sen = this.senescentCells(age, scn)/100;
-    const md = this.methylationDrift(age, scn)/100;
-    const h = (name, ageDecay, teloW, senW) => {
-      const ageFx = Math.max(0, 1 - age/ageDecay);
-      return Math.max(0, Math.min(100, Math.round((tf*teloW + ageFx*(1-teloW))*100 - sen*senW*100 - md*10)));
-    };
-    return {
-      gut:    h('gut',    100, .55, .30),
-      blood:  h('blood',  110, .50, .25),
-      immune: h('immune', 100, .50, .35),
-      skin:   h('skin',    95, .40, .20),
-      muscle: h('muscle', 100, .30, .15),
-      brain:  h('brain',  120, .25, .30),
-      bone:   h('bone',   100, .35, .20),
-      heart:  h('heart',  110, .40, .25),
-    };
-  },
+telo(a,s,sc){
+  const birth=s==='m'?10500:10800;let len=birth;
+  if(a<=4)len-=a*270;else if(a<=20)len-=4*270+(a-4)*50;
+  else{const r=s==='m'?32:26;len-=4*270+16*50+(a-20)*r;if(s==='f'&&a>50)len-=(a-50)*12}
+  len+=(100-S.divRate)/100*a*20;
+  if(sc==='telomerase'||sc==='combined')len+=S.teloAct/100*Math.max(0,a-2)*85;
+  if((sc==='selective'||sc==='combined')&&S.divRate<90)len+=(90-S.divRate)/100*a*18;
+  return Math.max(0,Math.min(13000,Math.round(len)))},
+methDrift(a,sc){let d=a<=20?(a/20)*30:30+(a-20)/60*55;d=Math.min(95,d);if(sc==='methylation'||sc==='combined')d*=(1-S.methRev/100*.65);return Math.max(0,d)},
+epiAge(a,sc){return Math.max(0,Math.round(this.methDrift(a,sc)/85*a))},
+senCells(a,sc){let p=Math.min(45,Math.pow(a/80,2.5)*35);if(sc==='telomerase'||sc==='combined')p*=(1-S.teloAct/200);if(sc==='methylation'||sc==='combined')p*=(1-S.methRev/200);return Math.max(0,p)},
+sysHealth(a,s,sc){const t=this.telo(a,s,sc),tf=Math.max(0,(t-3500)/7000),sn=this.senCells(a,sc)/100,md=this.methDrift(a,sc)/100;
+  const h=(ad,tw,sw)=>Math.max(0,Math.min(100,Math.round((tf*tw+Math.max(0,1-a/ad)*(1-tw))*100-sn*sw*100-md*10)));
+  return{gut:h(100,.55,.30),blood:h(110,.50,.25),immune:h(100,.50,.35),skin:h(95,.40,.20),muscle:h(100,.30,.15),brain:h(120,.25,.30),bone:h(100,.35,.20),heart:h(110,.40,.25)}}
 };
 
-function lerpTable(table, x) {
-  if (x <= table[0][0]) return table[0][1];
-  if (x >= table[table.length-1][0]) return table[table.length-1][1];
-  for (let i=1;i<table.length;i++) {
-    if (x <= table[i][0]) {
-      const t = (x - table[i-1][0]) / (table[i][0] - table[i-1][0]);
-      return table[i-1][1] + t * (table[i][1] - table[i-1][1]);
+/* ══════════════════════════════════════════
+   STATE
+   ══════════════════════════════════════════ */
+const S={age:0,pb:0,sc:'normal',divRate:100,teloAct:0,methRev:0};window.S=S;
+window.setAge=a=>{S.age=Math.max(0,Math.min(80,a));$('aSlider').value=S.age};
+window.setPB=v=>{S.pb=v;document.querySelectorAll('.tb button').forEach(b=>b.classList.remove('a'));({'−3':'bRF','-3':'bRF','-1':'bR','0':'bP','1':'bF','3':'bFF'})[v]&&$(({'−3':'bRF','-3':'bRF','-1':'bR','0':'bP','1':'bF','3':'bFF'})[v])?.classList.add('a')};
+window.setSc=v=>{S.sc=v;const p={normal:[100,0,0],telomerase:[100,65,0],selective:[70,0,0],methylation:[100,0,60],combined:[80,50,50]}[v]||[100,0,0];
+  S.divRate=p[0];S.teloAct=p[1];S.methRev=p[2];$('sD').value=p[0];$('sT').value=p[1];$('sM').value=p[2];updSL();$('selS').value=v;$('selS2').value=v};
+function updSL(){$('vD').textContent=S.divRate+'%';$('vT').textContent=S.teloAct+'%';$('vM').textContent=S.methRev+'%'}
+$('sD').oninput=e=>{S.divRate=+e.target.value;updSL()};
+$('sT').oninput=e=>{S.teloAct=+e.target.value;updSL()};
+$('sM').oninput=e=>{S.methRev=+e.target.value;updSL()};
+function $(id){return document.getElementById(id)}
+
+/* ══════════════════════════════════════════
+   THREE.JS SCENE — CLOSE CAMERA, WARM LIGHT
+   ══════════════════════════════════════════ */
+const cvs=document.getElementById('scene');
+const R=new THREE.WebGLRenderer({canvas:cvs,antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));
+R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.15;
+R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
+const sc=new THREE.Scene();sc.background=new THREE.Color(0x060a14);
+const cam=new THREE.PerspectiveCamera(38,1,0.1,100);cam.position.set(0,3,6.5);
+const oc=new OrbitControls(cam,cvs);oc.enableDamping=true;oc.dampingFactor=.06;oc.target.set(0,2.6,0);oc.minDistance=2;oc.maxDistance=16;
+sc.add(new THREE.AmbientLight(0x2a3050,1.5));
+const kl=new THREE.DirectionalLight(0xffeedd,2.8);kl.position.set(4,9,5);kl.castShadow=true;kl.shadow.mapSize.set(1024,1024);sc.add(kl);
+sc.add(new THREE.DirectionalLight(0x8899cc,.9).translateX(-5).translateY(4).translateZ(2));
+sc.add(new THREE.DirectionalLight(0x6366f1,.6).translateY(3).translateZ(-5));
+sc.add(new THREE.PointLight(0x334466,.4,12).translateY(.2).translateZ(3));
+const gnd=new THREE.Mesh(new THREE.CircleGeometry(10,48),new THREE.MeshStandardMaterial({color:0x080c18,roughness:1}));
+gnd.rotation.x=-Math.PI/2;gnd.receiveShadow=true;sc.add(gnd);
+sc.add(new THREE.GridHelper(16,32,0x111827,0x0a0f1a));
+
+/* ══════════════════════════════════════════
+   SMOOTH TUBE MESH — ORGANIC BODY SURFACES
+   Creates continuous mesh from elliptical
+   cross-section control points
+   ══════════════════════════════════════════ */
+const U=6/177; // scene units per cm
+
+function smoothStep(t){return t*t*(3-2*t)}
+function lerpCP(cps,t){
+  const n=cps.length-1;const idx=t*n;const i=Math.min(Math.floor(idx),n-1);
+  const f=smoothStep(idx-i);const a=cps[i],b=cps[i+1];
+  return{y:a.y+(b.y-a.y)*f, rx:a.rx+(b.rx-a.rx)*f, rz:a.rz+(b.rz-a.rz)*f, cx:(a.cx||0)+((b.cx||0)-(a.cx||0))*f, cz:(a.cz||0)+((b.cz||0)-(a.cz||0))*f};
+}
+
+function buildTube(cps, mat, RS=18, N=null) {
+  if(!N) N=cps.length*4;
+  const S1=RS+1;
+  const vCount=(N+1)*S1;
+  const pos=new Float32Array(vCount*3);
+  const idx=[];
+
+  for(let ri=0;ri<=N;ri++){
+    const cp=lerpCP(cps,ri/N);
+    for(let si=0;si<=RS;si++){
+      const a=(si/RS)*Math.PI*2;
+      const vi=(ri*S1+si)*3;
+      pos[vi]  =cp.cx+cp.rx*Math.cos(a);
+      pos[vi+1]=cp.y;
+      pos[vi+2]=cp.cz+cp.rz*Math.sin(a);
     }
   }
-  return table[table.length-1][1];
-}
-
-/* ══════════════════════════════════════════════════════════
-   SECTION 2 — STATE
-   ══════════════════════════════════════════════════════════ */
-
-const SIM = { age:0, pb:0, scenario:'normal', divRate:100, teloAct:0, methRev:0 };
-window.SIM = SIM;
-
-window.setAge = a => { SIM.age = Math.max(0,Math.min(80,a)); document.getElementById('ageSlider').value=SIM.age; };
-window.setPB = v => {
-  SIM.pb = v;
-  document.querySelectorAll('.tl-btns button').forEach(b=>b.classList.remove('act'));
-  ({'-3':'bRF','-1':'bR','0':'bP','1':'bF','3':'bFF'})[v] && document.getElementById({'-3':'bRF','-1':'bR','0':'bP','1':'bF','3':'bFF'}[v])?.classList.add('act');
-};
-window.setScenario = s => {
-  SIM.scenario = s;
-  const presets = {
-    normal:{d:100,t:0,m:0}, telomerase:{d:100,t:65,m:0},
-    selective:{d:70,t:0,m:0}, methylation:{d:100,t:0,m:60}, combined:{d:80,t:50,m:50}
-  };
-  const p = presets[s]||presets.normal;
-  SIM.divRate=p.d; SIM.teloAct=p.t; SIM.methRev=p.m;
-  document.getElementById('sDivRate').value=p.d;
-  document.getElementById('sTeloAct').value=p.t;
-  document.getElementById('sMethRev').value=p.m;
-  updateSliderLabels();
-};
-
-function updateSliderLabels(){
-  document.getElementById('vDivRate').textContent=SIM.divRate+'%';
-  document.getElementById('vTeloAct').textContent=SIM.teloAct+'%';
-  document.getElementById('vMethRev').textContent=SIM.methRev+'%';
-}
-['sDivRate','sTeloAct','sMethRev'].forEach(id=>{
-  const key = id.replace('s','').replace('D','d').replace('T','t').replace('M','m')
-    .replace('ivRate','divRate').replace('eloAct','teloAct').replace('ethRev','methRev');
-  document.getElementById(id).addEventListener('input',e=>{
-    SIM[key]=+e.target.value; updateSliderLabels();
-  });
-});
-// Fix the key mapping
-document.getElementById('sDivRate').addEventListener('input',e=>{SIM.divRate=+e.target.value;updateSliderLabels();});
-document.getElementById('sTeloAct').addEventListener('input',e=>{SIM.teloAct=+e.target.value;updateSliderLabels();});
-document.getElementById('sMethRev').addEventListener('input',e=>{SIM.methRev=+e.target.value;updateSliderLabels();});
-
-/* ══════════════════════════════════════════════════════════
-   SECTION 3 — THREE.JS SCENE
-   ══════════════════════════════════════════════════════════ */
-
-const canvas = document.getElementById('scene');
-const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x060a14);
-
-const camera = new THREE.PerspectiveCamera(42,1,0.1,100);
-camera.position.set(0, 3.2, 7);
-
-const ctrl = new OrbitControls(camera, canvas);
-ctrl.enableDamping = true;
-ctrl.dampingFactor = 0.06;
-ctrl.target.set(0, 2.8, 0);
-ctrl.minDistance = 2.5;
-ctrl.maxDistance = 18;
-ctrl.maxPolarAngle = Math.PI * 0.85;
-
-// Lighting: 3-point + ambient
-scene.add(new THREE.AmbientLight(0x2a3050, 1.8));
-const keyLight = new THREE.DirectionalLight(0xffeedd, 2.5);
-keyLight.position.set(4, 8, 5);
-keyLight.castShadow = true;
-keyLight.shadow.mapSize.set(1024,1024);
-keyLight.shadow.camera.near=0.5; keyLight.shadow.camera.far=25;
-scene.add(keyLight);
-const fillLight = new THREE.DirectionalLight(0x8899cc, 1.0);
-fillLight.position.set(-5, 4, 2);
-scene.add(fillLight);
-const rimLight = new THREE.DirectionalLight(0x6366f1, 0.8);
-rimLight.position.set(0, 3, -6);
-scene.add(rimLight);
-const bottomFill = new THREE.PointLight(0x334466, 0.5, 15);
-bottomFill.position.set(0, 0.2, 3);
-scene.add(bottomFill);
-
-// Ground
-const gndGeo = new THREE.CircleGeometry(12,48);
-const gndMat = new THREE.MeshStandardMaterial({color:0x080c18, roughness:1});
-const gnd = new THREE.Mesh(gndGeo, gndMat);
-gnd.rotation.x = -Math.PI/2;
-gnd.receiveShadow = true;
-scene.add(gnd);
-
-const grid = new THREE.GridHelper(20,40,0x111827,0x0a0f1a);
-grid.position.y = 0.005;
-scene.add(grid);
-
-// Height rulers (vertical lines beside each figure)
-function makeRuler(x) {
-  const g = new THREE.Group();
-  const lineMat = new THREE.LineBasicMaterial({color:0x1a2744});
-  for (let cm=0; cm<=200; cm+=10) {
-    const y = cm/100 * 0.034; // scale: 1 cm = 0.034 scene units... let me recalc
-    // We'll scale figures so adult male (177cm) ≈ 6 units tall
-    const yy = cm/100 * (6/1.77);
-    const isMajor = cm%50===0;
-    const pts = [new THREE.Vector3(0,yy,0), new THREE.Vector3(isMajor?0.15:0.08, yy, 0)];
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat);
-    g.add(line);
+  for(let ri=0;ri<N;ri++)for(let si=0;si<RS;si++){
+    const a=ri*S1+si;idx.push(a,a+S1,a+1,a+1,a+S1,a+S1+1);
   }
-  // Vertical line
-  const vPts = [new THREE.Vector3(0,0,0), new THREE.Vector3(0, 200/100*(6/1.77), 0)];
-  g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(vPts), lineMat));
-  g.position.x = x;
-  return g;
-}
-scene.add(makeRuler(-3.2));
-scene.add(makeRuler(3.2));
 
-/* ══════════════════════════════════════════════════════════
-   SECTION 4 — HUMAN FIGURE BUILDER
-   High-quality mannequin-style figures with proper
-   age-based proportions and sex differences
-   ══════════════════════════════════════════════════════════ */
-
-const UNIT = 6 / 177; // scene units per cm (adult male = 6 units)
-
-function skinMaterial(base) {
-  return new THREE.MeshPhysicalMaterial({
-    color: base,
-    roughness: 0.62,
-    metalness: 0,
-    clearcoat: 0.08,
-    clearcoatRoughness: 0.4,
-    sheen: 0.4,
-    sheenRoughness: 0.5,
-    sheenColor: new THREE.Color(0xddaa88),
-  });
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geo.setIndex(idx);geo.computeVertexNormals();
+  const mesh=new THREE.Mesh(geo,mat);mesh.castShadow=true;
+  mesh.userData={RS,N,S1};return mesh;
 }
 
-function buildFigure(sex) {
-  const group = new THREE.Group();
-  const baseSkin = sex==='m' ? 0xc8956c : 0xd4a07a;
-  const mat = skinMaterial(baseSkin);
-  const hairMat = new THREE.MeshPhysicalMaterial({color:0x2a1f14, roughness:0.8, sheen:0.2, sheenColor:new THREE.Color(0x443322)});
+function updateTube(mesh,cps){
+  const{RS,N,S1}=mesh.userData;
+  const pos=mesh.geometry.attributes.position.array;
+  for(let ri=0;ri<=N;ri++){
+    const cp=lerpCP(cps,ri/N);
+    for(let si=0;si<=RS;si++){
+      const a=(si/RS)*Math.PI*2;
+      const vi=(ri*S1+si)*3;
+      pos[vi]=cp.cx+cp.rx*Math.cos(a);
+      pos[vi+1]=cp.y;
+      pos[vi+2]=cp.cz+cp.rz*Math.sin(a);
+    }
+  }
+  mesh.geometry.attributes.position.needsUpdate=true;
+  mesh.geometry.computeVertexNormals();
+}
 
-  const P = {}; // parts references
+/* ══════════════════════════════════════════
+   BODY CONTROL POINT GENERATORS
+   These compute the cross-section profile
+   of each body part at any age/sex
+   ══════════════════════════════════════════ */
 
-  // Head
-  P.head = new THREE.Mesh(new THREE.SphereGeometry(1,20,16), mat.clone());
-  P.head.castShadow = true;
-  group.add(P.head);
+function torsoCP(age,sex){
+  const h=BIO.heightCm(age,sex)*U;
+  const hd=h*BIO.headRatio(age);
+  const hr=hd*.44;
+  const sw=h*BIO.shoulderF(age,sex)*.5;
+  const hw=h*BIO.hipF(age,sex)*.5;
+  const mu=BIO.muscle(age,sex);
+  const ft=BIO.fat(age,sex);
+  const ww=hw*(sex==='m'?.82:.70)*(0.75+ft*.5);
+  const cw=sw*(.65+mu*.25);
+  const td=sw*.52;
+  const nw=hr*(sex==='m'?.50:.38)*(.65+mu*.35);
 
-  // Face features
-  P.nose = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.2, 6), mat.clone());
-  group.add(P.nose);
+  const hipY=h*.47, waistY=h*.54, ribY=h*.60, chestY=h*.67;
+  const shY=h*.725, nbY=h*.745, nkY=h*.78, jawY=h*.825;
+  const hcY=h*.875, htY=h*.945, crY=h*.995;
 
-  // Eyes
-  const eyeWhiteMat = new THREE.MeshStandardMaterial({color:0xfafafa, roughness:0.3});
-  const eyeIrisMat = new THREE.MeshStandardMaterial({color: sex==='m'?0x4a7ab5:0x5a8a5a, roughness:0.3});
-  P.eyeL = new THREE.Mesh(new THREE.SphereGeometry(1,8,8), eyeWhiteMat);
-  P.eyeR = new THREE.Mesh(new THREE.SphereGeometry(1,8,8), eyeWhiteMat);
-  P.irisL = new THREE.Mesh(new THREE.SphereGeometry(1,8,8), eyeIrisMat);
-  P.irisR = new THREE.Mesh(new THREE.SphereGeometry(1,8,8), eyeIrisMat);
-  [P.eyeL,P.eyeR,P.irisL,P.irisR].forEach(e=>group.add(e));
+  const pts=[
+    {y:hipY,    rx:hw,       rz:td*.88},
+    {y:hipY+(waistY-hipY)*.5, rx:(hw+ww)*.5, rz:td*.82},
+    {y:waistY,  rx:ww,       rz:td*.78},
+    {y:ribY,    rx:ww*1.08,  rz:td*.82},
+    {y:chestY,  rx:cw,       rz:td*.88},
+    {y:shY,     rx:sw,       rz:td*.72},
+    {y:nbY,     rx:nw*1.6,   rz:nw*1.4},
+    {y:nkY,     rx:nw,       rz:nw*.88},
+    {y:nkY+(jawY-nkY)*.5, rx:(nw+hr*.82)*.5, rz:(nw*.88+hr*.72)*.5},
+    {y:jawY,    rx:hr*.82,   rz:hr*.72},
+    {y:hcY,     rx:hr,       rz:hr*.92},
+    {y:htY,     rx:hr*.88,   rz:hr*.88},
+    {y:crY,     rx:hr*.35,   rz:hr*.35},
+  ];
 
-  // Mouth
-  P.mouth = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({color:0xb06060, roughness:0.6}));
-  group.add(P.mouth);
+  // Baby belly: add forward bulge
+  if(age<4){
+    const bulge=.03*h*(1-age/4);
+    pts[2].rz+=bulge; pts[3].rz+=bulge;
+  }
+  return pts;
+}
 
-  // Ears
-  P.earL = new THREE.Mesh(new THREE.SphereGeometry(1,6,6), mat.clone());
-  P.earR = new THREE.Mesh(new THREE.SphereGeometry(1,6,6), mat.clone());
-  group.add(P.earL, P.earR);
+function legCP(age,sex,side){
+  const h=BIO.heightCm(age,sex)*U;
+  const hw=h*BIO.hipF(age,sex)*.5;
+  const mu=BIO.muscle(age,sex);
+  const ft=BIO.fat(age,sex);
+  const cx=side*hw*.5;
+  const tk=.028*h*(.45+mu*.38+ft*.28);
+  const cTk=tk*(sex==='f'?1.08:1);
+  const tTk=tk*(sex==='f'?1.15:1.05);
+
+  return[
+    {y:0,       rx:tk*.75, rz:tk*1.1, cx, cz:tk*.25},
+    {y:h*.03,   rx:tk*.50, rz:tk*.52, cx, cz:0},
+    {y:h*.08,   rx:cTk*.88,rz:cTk*.78,cx, cz:0},
+    {y:h*.14,   rx:cTk*.92,rz:cTk*.82,cx, cz:0},
+    {y:h*.20,   rx:tk*.62, rz:tk*.65, cx, cz:0},
+    {y:h*.26,   rx:tTk*.85,rz:tTk*.80,cx, cz:0},
+    {y:h*.33,   rx:tTk*1.1,rz:tTk,    cx, cz:0},
+    {y:h*.40,   rx:tTk*1.2,rz:tTk*1.1,cx, cz:0},
+    {y:h*.47,   rx:tTk*1.3,rz:tTk*1.2,cx, cz:0},
+  ];
+}
+
+function armCP(age,sex,side){
+  const h=BIO.heightCm(age,sex)*U;
+  const sw=h*BIO.shoulderF(age,sex)*.5;
+  const mu=BIO.muscle(age,sex);
+  const cx=side*(sw*.92);
+  const tk=.018*h*(.45+mu*.45)*(sex==='m'?1:.82);
+
+  const sy=h*.725;
+  return[
+    {y:sy,        rx:tk*1.1, rz:tk, cx},
+    {y:sy-h*.04,  rx:tk*1.0, rz:tk*.9, cx},
+    {y:sy-h*.10,  rx:tk*.92, rz:tk*.85, cx},
+    {y:sy-h*.16,  rx:tk*.82, rz:tk*.78, cx},
+    {y:sy-h*.21,  rx:tk*.65, rz:tk*.65, cx},
+    {y:sy-h*.27,  rx:tk*.58, rz:tk*.55, cx},
+    {y:sy-h*.33,  rx:tk*.50, rz:tk*.48, cx},
+    {y:sy-h*.38,  rx:tk*.45, rz:tk*.22, cx},
+    {y:sy-h*.42,  rx:tk*.42, rz:tk*.18, cx},
+  ];
+}
+
+/* ══════════════════════════════════════════
+   HUMAN FIGURE BUILDER
+   ══════════════════════════════════════════ */
+
+function skinMat(sex){
+  const base=sex==='m'?0xc4916a:0xd1a078;
+  return new THREE.MeshPhysicalMaterial({color:base,roughness:.58,metalness:0,clearcoat:.06,sheen:.5,sheenRoughness:.4,sheenColor:new THREE.Color(0xffaa88)});
+}
+
+function buildHuman(sex){
+  const g=new THREE.Group();
+  const mat=skinMat(sex);
+  const hairMat=new THREE.MeshPhysicalMaterial({color:0x221a10,roughness:.75,sheen:.15,sheenColor:new THREE.Color(0x443322)});
+
+  const d={};
+  d.torso=buildTube(torsoCP(0,sex),mat,20);
+  d.legL=buildTube(legCP(0,sex,-1),mat,14);
+  d.legR=buildTube(legCP(0,sex,1),mat,14);
+  d.armL=buildTube(armCP(0,sex,-1),mat,12);
+  d.armR=buildTube(armCP(0,sex,1),mat,12);
+
+  // Pelvis bridge (smooth sphere connecting legs to torso)
+  d.pelvis=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),mat.clone());
+  d.pelvis.castShadow=true;
+
+  // Breasts (female)
+  if(sex==='f'){
+    d.brL=new THREE.Mesh(new THREE.SphereGeometry(1,12,10),mat.clone());
+    d.brR=new THREE.Mesh(new THREE.SphereGeometry(1,12,10),mat.clone());
+    d.brL.castShadow=d.brR.castShadow=true;
+  }
 
   // Hair
-  P.hair = new THREE.Mesh(
-    sex==='m' ? new THREE.SphereGeometry(1,16,12,0,Math.PI*2,0,Math.PI*0.52)
-              : new THREE.SphereGeometry(1,16,14,0,Math.PI*2,0,Math.PI*0.7),
-    hairMat.clone()
-  );
-  P.hair.castShadow = true;
-  group.add(P.hair);
+  const hairGeo=sex==='m'
+    ? new THREE.SphereGeometry(1,16,12,0,Math.PI*2,0,Math.PI*.48)
+    : new THREE.SphereGeometry(1,16,14,0,Math.PI*2,0,Math.PI*.72);
+  d.hair=new THREE.Mesh(hairGeo,hairMat.clone());
+  d.hair.castShadow=true;
 
-  // Neck
-  P.neck = new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,10), mat.clone());
-  group.add(P.neck);
+  // Face: eyes, nose, mouth
+  const wMat=new THREE.MeshStandardMaterial({color:0xfafafa,roughness:.3});
+  const iMat=new THREE.MeshStandardMaterial({color:sex==='m'?0x4478aa:0x5a8855,roughness:.35});
+  const mMat=new THREE.MeshStandardMaterial({color:0x995555,roughness:.6});
+  const bMat=new THREE.MeshStandardMaterial({color:0x221a10,roughness:.8});
 
-  // Torso (upper chest + lower abdomen as two segments for shaping)
-  P.chest = new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,12), mat.clone());
-  P.chest.castShadow = true;
-  group.add(P.chest);
-  P.abdomen = new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,12), mat.clone());
-  P.abdomen.castShadow = true;
-  group.add(P.abdomen);
+  d.eyeL=new THREE.Mesh(new THREE.SphereGeometry(1,8,8),wMat);
+  d.eyeR=new THREE.Mesh(new THREE.SphereGeometry(1,8,8),wMat);
+  d.irisL=new THREE.Mesh(new THREE.SphereGeometry(1,8,8),iMat);
+  d.irisR=new THREE.Mesh(new THREE.SphereGeometry(1,8,8),iMat);
+  d.pupilL=new THREE.Mesh(new THREE.SphereGeometry(1,6,6),new THREE.MeshStandardMaterial({color:0x111111}));
+  d.pupilR=new THREE.Mesh(new THREE.SphereGeometry(1,6,6),new THREE.MeshStandardMaterial({color:0x111111}));
+  d.nose=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),mat.clone());
+  d.mouth=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),mMat);
+  d.browL=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),bMat.clone());
+  d.browR=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),bMat.clone());
 
-  // Pelvis
-  P.pelvis = new THREE.Mesh(new THREE.SphereGeometry(1,12,8,0,Math.PI*2,0,Math.PI*0.6), mat.clone());
-  group.add(P.pelvis);
+  // Ears
+  d.earL=new THREE.Mesh(new THREE.SphereGeometry(1,6,8),mat.clone());
+  d.earR=new THREE.Mesh(new THREE.SphereGeometry(1,6,8),mat.clone());
 
-  // Breasts (female only, subtle)
-  if (sex==='f') {
-    P.breastL = new THREE.Mesh(new THREE.SphereGeometry(1,10,8), mat.clone());
-    P.breastR = new THREE.Mesh(new THREE.SphereGeometry(1,10,8), mat.clone());
-    group.add(P.breastL, P.breastR);
-  }
-
-  // Arms & legs (upper, lower, joint, hand/foot)
-  ['L','R'].forEach(side => {
-    const s = side;
-    P['shoulder'+s] = new THREE.Mesh(new THREE.SphereGeometry(1,8,8), mat.clone());
-    P['upperArm'+s] = new THREE.Mesh(new THREE.CapsuleGeometry(1,1,6,10), mat.clone());
-    P['elbow'+s]    = new THREE.Mesh(new THREE.SphereGeometry(1,6,6), mat.clone());
-    P['forearm'+s]  = new THREE.Mesh(new THREE.CapsuleGeometry(1,1,6,10), mat.clone());
-    P['hand'+s]     = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), mat.clone());
-
-    P['hip'+s]      = new THREE.Mesh(new THREE.SphereGeometry(1,8,8), mat.clone());
-    P['thigh'+s]    = new THREE.Mesh(new THREE.CapsuleGeometry(1,1,6,10), mat.clone());
-    P['knee'+s]     = new THREE.Mesh(new THREE.SphereGeometry(1,6,6), mat.clone());
-    P['shin'+s]     = new THREE.Mesh(new THREE.CapsuleGeometry(1,1,6,10), mat.clone());
-    P['foot'+s]     = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), mat.clone());
-
-    [P['shoulder'+s],P['upperArm'+s],P['elbow'+s],P['forearm'+s],P['hand'+s],
-     P['hip'+s],P['thigh'+s],P['knee'+s],P['shin'+s],P['foot'+s]].forEach(m=>{
-      m.castShadow=true; group.add(m);
-    });
-  });
-
-  group.userData = {sex, parts:P, mat, hairMat};
-  return group;
+  Object.values(d).forEach(m=>{if(m instanceof THREE.Mesh)g.add(m)});
+  g.userData={sex,d,mat,hairMat};
+  return g;
 }
 
-function updateFigure(group, age) {
-  const {sex, parts:P} = group.userData;
-  const scn = SIM.scenario;
-  const hCm = BIO.heightCm(age, sex);
-  const totalH = hCm * UNIT;
+function updateHuman(g,age){
+  const{sex,d}=g.userData;
+  const sc=S.sc;
+  const h=BIO.heightCm(age,sex)*U;
+  const hd=h*BIO.headRatio(age);
+  const hr=hd*.44;
+  const sw=h*BIO.shoulderF(age,sex)*.5;
+  const hw=h*BIO.hipF(age,sex)*.5;
+  const mu=BIO.muscle(age,sex);
+  const ft=BIO.fat(age,sex);
 
-  // Proportional measurements
-  const headFrac = BIO.headRatio(age);
-  const headH = totalH * headFrac;
-  const headW = headH * (age<2 ? 0.95 : 0.82);
-  const shoulderW = hCm * BIO.shoulderFrac(age, sex) * UNIT;
-  const hipW = hCm * BIO.hipFrac(age, sex) * UNIT;
-  const muscle = BIO.muscleFactor(age, sex);
-  const fat = BIO.bodyFatFactor(age, sex);
-  const lean = BIO.postureLean(age) * Math.PI/180;
-  const skinH = BIO.skinHealth(age);
-  const hairGray = BIO.hairGray(age);
-  const hairDens = BIO.hairDensity(age, sex);
+  // Update smooth tube meshes
+  updateTube(d.torso,torsoCP(age,sex));
+  updateTube(d.legL,legCP(age,sex,-1));
+  updateTube(d.legR,legCP(age,sex,1));
+  updateTube(d.armL,armCP(age,sex,-1));
+  updateTube(d.armR,armCP(age,sex,1));
 
-  const neckH = totalH * 0.035;
-  const chestH = totalH * 0.18;
-  const abdH = totalH * 0.12;
-  const pelvisH = totalH * 0.08;
-  const upperArmL = totalH * 0.16;
-  const forearmL = totalH * 0.14;
-  const thighL = totalH * 0.22;
-  const shinL = totalH * 0.21;
+  // Pelvis bridge
+  const hipY=h*.47;
+  d.pelvis.position.set(0,hipY,0);
+  d.pelvis.scale.set(hw*.95,h*.04,hw*.7);
 
-  const limbThick = 0.08 * totalH * (0.5 + muscle*0.4 + fat*0.2);
-  const armThick = limbThick * (sex==='m' ? 1 : 0.85);
-  const legThick = limbThick * 1.15;
-
-  // Body widths
-  const chestW = shoulderW * 0.85;
-  const chestD = chestW * (sex==='m' ? 0.65 : 0.6);
-  const waistW = (sex==='m') ? chestW * 0.82 : chestW * 0.72;
-  const waistD = chestD * (age<3 ? 1.1 : 0.9);
-
-  // Vertical layout (bottom-up)
-  const footH = totalH * 0.015;
-  const ankleY = footH;
-  const kneeY = ankleY + shinL;
-  const hipY = kneeY + thighL;
-  const pelvisY = hipY + pelvisH*0.3;
-  const abdY = pelvisY + abdH*0.5 + pelvisH*0.2;
-  const chestY = abdY + abdH*0.5 + chestH*0.5;
-  const neckY = chestY + chestH*0.5 + neckH*0.5;
-  const headY = neckY + neckH*0.5 + headH*0.42;
+  // Breasts
+  if(sex==='f'&&d.brL){
+    const bd=BIO.breastDev(age);
+    const bs=hr*.38*bd*(.75+ft*.5);
+    const chY=h*.67;
+    const chD=sw*.52*.88;
+    d.brL.position.set(-sw*.22,chY-h*.02,chD*.8);
+    d.brL.scale.set(bs,bs*.85,bs*.65);
+    d.brR.position.set(sw*.22,chY-h*.02,chD*.8);
+    d.brR.scale.set(bs,bs*.85,bs*.65);
+    d.brL.visible=d.brR.visible=bd>.05;
+  }
 
   // Posture
-  group.rotation.x = lean;
+  g.rotation.x=BIO.posture(age)*Math.PI/180;
 
-  // Skin color (age-adjusted)
-  const baseSkin = sex==='m' ? new THREE.Color(0xc8956c) : new THREE.Color(0xd4a07a);
-  const agedSkin = new THREE.Color(0xa08870);
-  const skinColor = new THREE.Color().lerpColors(agedSkin, baseSkin, skinH);
-
-  group.traverse(child => {
-    if (child.isMesh && child.material && child.material.isMeshPhysicalMaterial && child !== P.hair) {
-      if (!child.material._isEye && child.material.color.r !== 0.69) {
-        child.material.color.copy(skinColor);
-      }
-    }
-  });
-
-  // Head
-  P.head.position.set(0, headY, 0);
-  P.head.scale.set(headW, headH*0.5, headW*0.88);
-
-  // Face features
-  const noseSize = headW * (age<5 ? 0.12 : 0.18);
-  P.nose.position.set(0, headY - headH*0.05, headW*0.82);
-  P.nose.scale.set(noseSize, noseSize*1.4, noseSize);
-  P.nose.rotation.x = -Math.PI/2;
-
-  // Eyes
-  const eyeS = headW * 0.12;
-  const eyeY = headY + headH*0.06;
-  const eyeZ = headW * 0.72;
-  const eyeSpread = headW * 0.32;
-  P.eyeL.position.set(-eyeSpread, eyeY, eyeZ);
-  P.eyeL.scale.setScalar(eyeS);
-  P.eyeR.position.set(eyeSpread, eyeY, eyeZ);
-  P.eyeR.scale.setScalar(eyeS);
-  P.irisL.position.set(-eyeSpread, eyeY, eyeZ + eyeS*0.4);
-  P.irisL.scale.setScalar(eyeS*0.55);
-  P.irisR.position.set(eyeSpread, eyeY, eyeZ + eyeS*0.4);
-  P.irisR.scale.setScalar(eyeS*0.55);
-
-  // Mouth
-  P.mouth.position.set(0, headY - headH*0.22, headW*0.7);
-  P.mouth.scale.set(headW*0.28, headH*0.04, headW*0.06);
-
-  // Ears
-  const earS = headW * (age>60 ? 0.22 : 0.17); // ears grow with age
-  P.earL.position.set(-headW*0.92, headY, 0);
-  P.earL.scale.set(earS*0.4, earS, earS*0.5);
-  P.earR.position.set(headW*0.92, headY, 0);
-  P.earR.scale.set(earS*0.4, earS, earS*0.5);
+  // Skin color aging
+  const sk=BIO.skinH(age);
+  const skinCol=new THREE.Color().lerpColors(new THREE.Color(0x998872),sex==='m'?new THREE.Color(0xc4916a):new THREE.Color(0xd1a078),sk);
+  g.traverse(c=>{if(c.isMesh&&c.material?.isMeshPhysicalMaterial&&c!==d.hair&&c!==d.mouth&&c!==d.browL&&c!==d.browR&&c!==d.eyeL&&c!==d.eyeR&&c!==d.irisL&&c!==d.irisR&&c!==d.pupilL&&c!==d.pupilR){c.material.color.copy(skinCol)}});
 
   // Hair
-  const hairScale = headW * 1.06 * hairDens;
-  P.hair.position.set(0, headY + headH*0.08, sex==='f'?-headW*0.1:0);
-  P.hair.scale.set(hairScale, headH*0.52*hairDens, hairScale*(sex==='f'?1.1:0.95));
-  const hairColor = new THREE.Color().lerpColors(new THREE.Color(0x2a1f14), new THREE.Color(0xcccccc), hairGray);
-  P.hair.material.color.copy(hairColor);
+  const hcY=h*.875;
+  const hairDn=BIO.hairDens(age,sex);
+  const hairSc=hr*1.08*Math.max(.1,hairDn);
+  d.hair.position.set(0,hcY+hd*.08,sex==='f'?-hr*.12:0);
+  d.hair.scale.set(hairSc,hd*.48*Math.max(.2,hairDn),hairSc*(sex==='f'?1.15:.95));
+  const gray=BIO.hairGray(age);
+  d.hair.material.color.lerpColors(new THREE.Color(0x221a10),new THREE.Color(0xcccccc),gray);
+  // Brow color matches hair
+  d.browL.material.color.copy(d.hair.material.color);
+  d.browR.material.color.copy(d.hair.material.color);
 
-  // Neck
-  const neckW = headW * (sex==='m' ? 0.52 : 0.42) * (0.6 + muscle*0.4);
-  P.neck.position.set(0, neckY, 0);
-  P.neck.scale.set(neckW, neckH, neckW*0.85);
+  // Face positioning
+  const eyeS=hr*.13;
+  const eyeY=hcY+hd*.065;
+  const eyeZ=hr*.78;
+  const eyeX=hr*.33;
+  d.eyeL.position.set(-eyeX,eyeY,eyeZ);d.eyeL.scale.setScalar(eyeS);
+  d.eyeR.position.set(eyeX,eyeY,eyeZ);d.eyeR.scale.setScalar(eyeS);
+  d.irisL.position.set(-eyeX,eyeY,eyeZ+eyeS*.42);d.irisL.scale.setScalar(eyeS*.55);
+  d.irisR.position.set(eyeX,eyeY,eyeZ+eyeS*.42);d.irisR.scale.setScalar(eyeS*.55);
+  d.pupilL.position.set(-eyeX,eyeY,eyeZ+eyeS*.65);d.pupilL.scale.setScalar(eyeS*.25);
+  d.pupilR.position.set(eyeX,eyeY,eyeZ+eyeS*.65);d.pupilR.scale.setScalar(eyeS*.25);
 
-  // Chest
-  P.chest.position.set(0, chestY, 0);
-  P.chest.scale.set(chestW, chestH, chestD);
+  // Nose (grows with age — cartilage never stops)
+  const noseS=hr*(age<5?.10:.15+(age>60?(age-60)*.001:0));
+  d.nose.position.set(0,hcY-hd*.02,hr*.88);
+  d.nose.scale.set(noseS*.7,noseS*1.1,noseS*.8);
 
-  // Abdomen (slightly narrower = waist, or wider for babies/older)
-  const abdW = age<3 ? chestW*1.05 : waistW * (1 + fat*0.3);
-  P.abdomen.position.set(0, abdY, 0);
-  P.abdomen.scale.set(abdW, abdH, waistD * (1 + fat*0.2));
+  // Mouth
+  d.mouth.position.set(0,hcY-hd*.15,hr*.72);
+  d.mouth.scale.set(hr*.3,hr*.04,hr*.06);
 
-  // Pelvis
-  P.pelvis.position.set(0, pelvisY, 0);
-  P.pelvis.scale.set(hipW, pelvisH, hipW*0.7);
+  // Eyebrows
+  const browW=eyeS*1.4;
+  d.browL.position.set(-eyeX,eyeY+eyeS*1.1,eyeZ-.01);
+  d.browL.scale.set(browW,eyeS*.18,eyeS*.15);
+  d.browR.position.set(eyeX,eyeY+eyeS*1.1,eyeZ-.01);
+  d.browR.scale.set(browW,eyeS*.18,eyeS*.15);
 
-  // Breasts (female, develop during puberty)
-  if (sex==='f' && P.breastL) {
-    const brDev = age<10 ? 0 : age<16 ? (age-10)/6 : 1;
-    const brSize = headW * 0.2 * brDev * (0.8 + fat*0.4);
-    P.breastL.position.set(-chestW*0.28, chestY - chestH*0.1, chestD*0.75);
-    P.breastL.scale.set(brSize, brSize*0.85, brSize*0.7);
-    P.breastR.position.set(chestW*0.28, chestY - chestH*0.1, chestD*0.75);
-    P.breastR.scale.set(brSize, brSize*0.85, brSize*0.7);
-    P.breastL.visible = brDev > 0.05;
-    P.breastR.visible = brDev > 0.05;
-  }
+  // Ears (grow with age)
+  const earS=hr*(age>60?.24:.18);
+  d.earL.position.set(-hr*.96,hcY,0);d.earL.scale.set(earS*.35,earS,earS*.5);
+  d.earR.position.set(hr*.96,hcY,0);d.earR.scale.set(earS*.35,earS,earS*.5);
+}
 
-  // Limbs
-  ['L','R'].forEach((s,i) => {
-    const sign = i===0 ? -1 : 1;
+// Build figures
+const mG=buildHuman('m');mG.position.x=-1.5;sc.add(mG);
+const fG=buildHuman('f');fG.position.x=1.5;sc.add(fG);
 
-    // Shoulders
-    const shX = sign * shoulderW * 0.5;
-    const shY = chestY + chestH*0.4;
-    P['shoulder'+s].position.set(shX, shY, 0);
-    P['shoulder'+s].scale.setScalar(armThick*0.55);
-
-    // Upper arm
-    const uaY = shY - upperArmL*0.5 - armThick*0.2;
-    P['upperArm'+s].position.set(shX, uaY, 0);
-    P['upperArm'+s].scale.set(armThick*0.42, upperArmL*0.45, armThick*0.42);
-
-    // Elbow
-    const elY = shY - upperArmL - armThick*0.1;
-    P['elbow'+s].position.set(shX, elY, 0);
-    P['elbow'+s].scale.setScalar(armThick*0.38);
-
-    // Forearm
-    const faY = elY - forearmL*0.5;
-    P['forearm'+s].position.set(shX, faY, 0);
-    P['forearm'+s].scale.set(armThick*0.36, forearmL*0.45, armThick*0.36);
-
-    // Hand
-    const handY = elY - forearmL;
-    const handS = armThick * 0.5;
-    P['hand'+s].position.set(shX, handY, 0);
-    P['hand'+s].scale.set(handS*0.8, handS*1.1, handS*0.35);
-
-    // Hips
-    const hpX = sign * hipW * 0.35;
-    P['hip'+s].position.set(hpX, hipY, 0);
-    P['hip'+s].scale.setScalar(legThick*0.48);
-
-    // Thigh
-    const thY = hipY - thighL*0.5;
-    P['thigh'+s].position.set(hpX, thY, 0);
-    P['thigh'+s].scale.set(legThick*0.48, thighL*0.45, legThick*0.46);
-
-    // Knee
-    const knY = hipY - thighL;
-    P['knee'+s].position.set(hpX, knY, 0);
-    P['knee'+s].scale.setScalar(legThick*0.38);
-
-    // Shin
-    const snY = knY - shinL*0.5;
-    P['shin'+s].position.set(hpX, snY, 0);
-    P['shin'+s].scale.set(legThick*0.36, shinL*0.45, legThick*0.34);
-
-    // Foot
-    P['foot'+s].position.set(hpX, footH*0.5, legThick*0.35);
-    P['foot'+s].scale.set(legThick*0.5, footH+0.02, legThick*0.9);
+/* ══════════════════════════════════════════
+   CHROMOSOME MODEL
+   ══════════════════════════════════════════ */
+function buildChrom(){
+  const g=new THREE.Group();
+  const cm=new THREE.MeshPhysicalMaterial({color:0x4338ca,roughness:.4,clearcoat:.3});
+  const tm=new THREE.MeshPhysicalMaterial({color:0x22c55e,roughness:.3,emissive:0x0a2a0a,clearcoat:.2});
+  [-.08,.08].forEach(x=>{
+    g.add(Object.assign(new THREE.Mesh(new THREE.CapsuleGeometry(.05,.9,6,10),cm),{position:new THREE.Vector3(x,0,0)}));
+    const t=new THREE.Mesh(new THREE.CapsuleGeometry(.065,.25,6,8),tm.clone());t.position.set(x,.72,0);t.name='tc';g.add(t);
+    const b=new THREE.Mesh(new THREE.CapsuleGeometry(.065,.25,6,8),tm.clone());b.position.set(x,-.72,0);b.name='tc';g.add(b);
   });
+  g.add(new THREE.Mesh(new THREE.TorusGeometry(.10,.03,8,16),cm).rotateX(Math.PI/2));
+  g.position.set(0,6.2,-2.2);g.scale.setScalar(.6);return g;
+}
+const chrom=buildChrom();sc.add(chrom);
+function updChrom(age){
+  const avg=(BIO.telo(age,'m',S.sc)+BIO.telo(age,'f',S.sc))/2;
+  const f=Math.max(.05,avg/13000);
+  chrom.traverse(c=>{if(c.name==='tc'){c.scale.set(f,Math.max(.1,f),f);c.material.color.set(f>.5?0x22c55e:f>.3?0xf59e0b:0xef4444);c.material.emissive.set(f>.5?0x0a2a0a:f>.3?0x2a1a00:0x2a0a0a)}});
+  chrom.rotation.y+=.006;
 }
 
-// Create figures
-const maleGroup = buildFigure('m');
-maleGroup.position.x = -1.6;
-scene.add(maleGroup);
+/* ══════════════════════════════════════════
+   HEALTH ROWS
+   ══════════════════════════════════════════ */
+const SYS=[{id:'gut',n:'Gut Lining'},{id:'blood',n:'Blood/Marrow'},{id:'immune',n:'Immune'},{id:'skin',n:'Skin/Hair'},{id:'muscle',n:'Muscle'},{id:'brain',n:'Brain'},{id:'bone',n:'Bone'},{id:'heart',n:'Heart'}];
+SYS.forEach(s=>{const r=document.createElement('div');r.className='hr';r.innerHTML=`<span class="nm">${s.n}</span><div class="br"><div class="fl" id="hf_${s.id}" style="width:100%;background:var(--ok)"></div></div><span class="pc" id="hp_${s.id}">100%</span>`;$('hR').appendChild(r)});
 
-const femaleGroup = buildFigure('f');
-femaleGroup.position.x = 1.6;
-scene.add(femaleGroup);
+/* ══════════════════════════════════════════
+   SCIENCE INFO
+   ══════════════════════════════════════════ */
+function ageSt(a){if(a<.1)return'Newborn';if(a<1)return'Infant';if(a<3)return'Toddler';if(a<6)return'Early Childhood';if(a<10)return'Childhood';if(a<13)return'Pre-Puberty';if(a<18)return'Adolescence';if(a<25)return'Young Adult';if(a<35)return'Prime Adult';if(a<45)return'Early Midlife';if(a<55)return'Midlife';if(a<65)return'Late Midlife';if(a<75)return'Senior';return'Elderly'}
 
-/* ══════════════════════════════════════════════════════════
-   SECTION 5 — TELOMERE CHROMOSOME MODEL
-   ══════════════════════════════════════════════════════════ */
+function sciInfo(age,scn){
+  const tM=BIO.telo(age,'m',scn),tF=BIO.telo(age,'f',scn),avg=(tM+tF)/2;
+  const sen=BIO.senCells(age,scn),meth=BIO.methDrift(age,scn);
+  let sev=avg>8000?'ok':avg>5000?'w':'d';
+  if(scn!=='normal'&&(S.teloAct>0||S.methRev>0))sev='b';
+  let b='';
+  if(age<1)b=`<strong>Rapid cell division phase.</strong> Telomeres shorten ~270 bp/yr — the fastest rate in a lifetime — as tissues multiply for growth. All organ systems developing. Stem cell pools at maximum. The epigenetic landscape is being programmed.`;
+  else if(age<5)b=`<strong>Growth phase.</strong> Telomere attrition ~200 bp/yr. Immune system training on novel antigens. Neural connections forming at ~700/second. Thymus at maximum size producing abundant naive T-cells.`;
+  else if(age<13)b=`<strong>Childhood.</strong> Telomere loss slows to ~50 bp/yr. Long bone growth plates active. Cognitive development rapid — myelination continuing. Immune repertoire diversifying.`;
+  else if(age<18)b=`<strong>Puberty.</strong> Testosterone drives male shoulder/muscle growth; estrogen drives female hip/breast development and — critically — activates telomerase (hTERT) giving females ~200-500 bp telomere advantage. Brain prefrontal cortex still developing.`;
+  else if(age<30)b=`<strong>Peak function.</strong> Telomere loss slowed to ~30 bp/yr. Muscle, bone density, cardiac output at maximum. DNA repair optimal. Senescent cells &lt;1%.`;
+  else if(age<45)b=`<strong>Early decline.</strong> NAD+ dropping (~50% loss by 50). Senescence marker p16<sup>INK4a</sup> rising. Telomeres at ${avg.toLocaleString()} bp. Collagen production slowing. Muscle declining ~3-8%/decade. Melanocytes failing (gray hair).`;
+  else if(age<55)b=`<strong>Midlife inflection.</strong> Female menopause (~50): estrogen drops, telomere loss accelerates +12 bp/yr, cardiovascular risk rises. Male testosterone declining ~1%/yr since 30. Thymus at ~10% of peak. Senescent cells: ~${Math.round(sen)}%.`;
+  else if(age<65)b=`<strong>Accelerating decline.</strong> Telomeres at ${avg.toLocaleString()} bp — nearing 5,000 bp threshold. Stem cell exhaustion measurable. SASP driving chronic inflammation. Wound healing 2-3× slower.`;
+  else if(age<75)b=`<strong>Near critical threshold.</strong> At ${avg.toLocaleString()} bp, cells approaching Hayflick limit. ~${Math.round(sen)}% senescent cells secreting IL-6, TNF-α. Immune function severely declined.`;
+  else b=`<strong>Advanced aging.</strong> Telomeres at ${avg.toLocaleString()} bp — many below failure threshold. Stem cells exhausted. Organ reserve minimal. DNA repair errors accumulating.`;
 
-function buildChromosome() {
-  const g = new THREE.Group();
-  const chromMat = new THREE.MeshPhysicalMaterial({color:0x4338ca, roughness:0.4, clearcoat:0.3});
-  const teloMatGreen = new THREE.MeshPhysicalMaterial({color:0x22c55e, roughness:0.3, emissive:0x0a2a0a, clearcoat:0.2});
+  if(scn==='telomerase'&&S.teloAct>0) b+=`<div class="is"><h4>Telomerase Reactivation</h4>hTERT adding ~${Math.round(S.teloAct*.85)} bp/yr. Telomeres ${(avg-BIO.telo(age,'m','normal')).toLocaleString()} bp above baseline. Mirrors Blasco lab 2012: AAV9-telomerase → 24% lifespan extension in mice without increased cancer.</div>`;
+  if(scn==='methylation'&&S.methRev>0) b+=`<div class="is"><h4>Epigenetic Reprogramming</h4>TET1/2/3 demethylating CpG sites. Horvath clock reads ${BIO.epiAge(age,scn)} vs chronological ${Math.round(age)}. Partial OSKM — Ocampo et al. 2016: 30% lifespan extension in progeroid mice.</div>`;
+  if(scn==='selective') b+=`<div class="is"><h4>Selective Division Control</h4>Division at ${S.divRate}% in low-priority tissues (mTOR/rapamycin mechanism). Preserves immune/gut renewal while reducing telomere waste. Rapamycin extends mouse lifespan ~25%.</div>`;
+  if(scn==='combined') b+=`<div class="is"><h4>Combined Protocol</h4>Telomerase +${Math.round(S.teloAct*.85)} bp/yr, division at ${S.divRate}%, methylation reversal ${S.methRev}%. Bio age ${BIO.epiAge(age,scn)} at chrono ${Math.round(age)}. Theoretical max — comparable to naked mole rat mechanisms (30+ yr at mouse body size).</div>`;
 
-  [-0.1,0.1].forEach(x => {
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.06,1.2,6,10), chromMat);
-    arm.position.x = x;
-    g.add(arm);
-    const capT = new THREE.Mesh(new THREE.CapsuleGeometry(0.08,0.3,6,8), teloMatGreen.clone());
-    capT.position.set(x, 0.9, 0);
-    capT.name = 'telocap';
-    g.add(capT);
-    const capB = new THREE.Mesh(new THREE.CapsuleGeometry(0.08,0.3,6,8), teloMatGreen.clone());
-    capB.position.set(x, -0.9, 0);
-    capB.name = 'telocap';
-    g.add(capB);
-  });
-  const centro = new THREE.Mesh(new THREE.TorusGeometry(0.12,0.035,8,16), chromMat);
-  centro.rotation.x = Math.PI/2;
-  g.add(centro);
-  g.position.set(0, 6.5, -2.5);
-  g.scale.setScalar(0.7);
-  return g;
-}
-const chromModel = buildChromosome();
-scene.add(chromModel);
-
-function updateChrom(age) {
-  const avgTelo = (BIO.telomereLength(age,'m',SIM.scenario)+BIO.telomereLength(age,'f',SIM.scenario))/2;
-  const frac = Math.max(0.05, Math.min(1, avgTelo/13000));
-  chromModel.traverse(c => {
-    if (c.name==='telocap') {
-      c.scale.set(frac, Math.max(0.1,frac), frac);
-      const col = frac>.5 ? 0x22c55e : frac>.3 ? 0xf59e0b : 0xef4444;
-      c.material.color.set(col);
-      c.material.emissive.set(frac>.5?0x0a2a0a:frac>.3?0x2a1a00:0x2a0a0a);
-    }
-  });
-  chromModel.rotation.y += 0.006;
+  b+=`<div class="is"><h4>Sex Differences</h4>${age<13?'Minimal hormonal differentiation. Growth trajectories nearly identical.':age<50?`Females maintain ${(tF-tM).toLocaleString()} bp longer telomeres via estrogen-activated telomerase. Males have higher oxidative stress accelerating erosion.`:`Post-menopause: female advantage narrowing (${(tF-tM).toLocaleString()} bp). Estrogen-mediated protection ceased. Osteoporosis risk 4× higher in females.`}</div>`;
+  return{title:ageSt(age),sev,body:b};
 }
 
-/* ══════════════════════════════════════════════════════════
-   SECTION 6 — BUILD HEALTH ROWS
-   ══════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════
+   UI UPDATE
+   ══════════════════════════════════════════ */
+function hc(v){return v>=75?'#4ade80':v>=50?'#fbbf24':v>=25?'#f87171':'#c084fc'}
 
-const SYSTEMS = [
-  {id:'gut',icon:'🫀',name:'Gut Lining'},
-  {id:'blood',icon:'🩸',name:'Blood/Marrow'},
-  {id:'immune',icon:'🛡️',name:'Immune'},
-  {id:'skin',icon:'🧬',name:'Skin/Hair'},
-  {id:'muscle',icon:'💪',name:'Muscle'},
-  {id:'brain',icon:'🧠',name:'Brain'},
-  {id:'bone',icon:'🦴',name:'Bone'},
-  {id:'heart',icon:'❤️',name:'Heart'},
-];
+function updUI(){
+  const age=S.age,scn=S.sc;
+  $('aN').textContent=Math.round(age);$('aS').textContent=ageSt(age);$('aSlider').value=age;
 
-const healthContainer = document.getElementById('healthRows');
-SYSTEMS.forEach(s => {
-  const row = document.createElement('div');
-  row.className = 'health-row';
-  row.innerHTML = `<span class="icon">${s.icon}</span><span class="name">${s.name}</span><div class="bar"><div class="fill" id="hf_${s.id}" style="width:100%;background:var(--ok)"></div></div><span class="pct" id="hp_${s.id}">100%</span>`;
-  healthContainer.appendChild(row);
-});
+  const tM=BIO.telo(age,'m',scn),tF=BIO.telo(age,'f',scn);
+  $('tMV').textContent=tM.toLocaleString()+' bp';$('tMV').style.color=hc(tM/130);
+  $('tFV').textContent=tF.toLocaleString()+' bp';$('tFV').style.color=hc(tF/130);
+  $('tBM').style.width=Math.max(0,tM/13000*100)+'%';$('tBM').style.background=hc(tM/130);
+  $('tBF').style.width=Math.max(0,tF/13000*100)+'%';$('tBF').style.background=hc(tF/130);
 
-/* ══════════════════════════════════════════════════════════
-   SECTION 7 — SCIENCE INFO DATABASE
-   ══════════════════════════════════════════════════════════ */
+  $('eAV').textContent=BIO.epiAge(age,scn);$('mDV').textContent=Math.round(BIO.methDrift(age,scn))+'%';
+  $('snV').textContent='~'+Math.round(BIO.senCells(age,scn))+'%';
 
-function ageStage(age) {
-  if(age<0.1)return'Newborn';if(age<1)return'Infant';if(age<3)return'Toddler';
-  if(age<6)return'Early Childhood';if(age<10)return'Childhood';if(age<13)return'Pre-Puberty';
-  if(age<18)return'Adolescence';if(age<25)return'Young Adult';if(age<35)return'Prime Adult';
-  if(age<45)return'Early Midlife';if(age<55)return'Midlife';if(age<65)return'Late Midlife';
-  if(age<75)return'Senior';return'Elderly';
+  const hM=BIO.sysHealth(age,'m',scn),hF=BIO.sysHealth(age,'f',scn);
+  SYS.forEach(s=>{const v=Math.round((hM[s.id]+hF[s.id])/2);$('hf_'+s.id).style.width=v+'%';$('hf_'+s.id).style.background=hc(v);$('hp_'+s.id).textContent=v+'%';$('hp_'+s.id).style.color=hc(v)});
+
+  const hcM=BIO.heightCm(age,'m'),hcF=BIO.heightCm(age,'f');
+  $('mI').textContent=`${Math.round(hcM)}cm · ${tM.toLocaleString()} bp`;
+  $('fI').textContent=`${Math.round(hcF)}cm · ${tF.toLocaleString()} bp`;
+
+  const avg=(tM+tF)/2,rem=avg-4000,yL=rem>0?Math.round(rem/30):0;
+  $('bpP').textContent=rem>3000?`Reserves: ~${yL} years of capacity`:rem>1000?`Warning: ~${yL} years remaining`:'Critical: reserves exhausted';
+
+  const info=sciInfo(age,scn);
+  const pc={ok:'pl-ok',w:'pl-w',d:'pl-d',b:'pl-b'}[info.sev];
+  const pl={ok:'Healthy',w:'Declining',d:'Critical',b:'Enhanced'}[info.sev];
+  $('iT').innerHTML=`${info.title} <span class="pl ${pc}">${pl}</span>`;
+  $('iB').innerHTML=info.body;
 }
 
-function scienceInfo(age, scn) {
-  const teloM = BIO.telomereLength(age,'m',scn);
-  const teloF = BIO.telomereLength(age,'f',scn);
-  const avg = (teloM+teloF)/2;
-  const sen = BIO.senescentCells(age,scn);
-  const meth = BIO.methylationDrift(age,scn);
+/* ══════════════════════════════════════════
+   ANIMATION LOOP
+   ══════════════════════════════════════════ */
+let lt=0;
+function anim(t){
+  requestAnimationFrame(anim);
+  const dt=Math.min((t-lt)/1000,.1);lt=t;
 
-  let sev = avg>8000?'ok':avg>5000?'warn':'danger';
-  if(scn!=='normal' && (SIM.teloAct>0||SIM.methRev>0)) sev='boost';
+  if(S.pb!==0){S.age=Math.max(0,Math.min(80,S.age+S.pb*2.5*dt));if(S.age<=0||S.age>=80)S.pb=0;updUI();}
 
-  let title = ageStage(age);
-  let body = '';
+  updateHuman(mG,S.age);updateHuman(fG,S.age);
 
-  // Age-specific physiology
-  if(age<1) body = `<strong>Rapid cell division phase.</strong> Telomeres shorten at ~270 bp/year — the fastest rate in a human lifetime — driven by explosive growth. All organ systems are developing. Stem cell pools are at maximum capacity. DNA methylation patterns are being established (epigenetic programming).`;
-  else if(age<5) body = `<strong>Growth phase.</strong> Telomere attrition remains high (~200 bp/yr) as tissues expand rapidly. The immune system is training on novel antigens. Neural connections are forming at peak rate (~700/second). The thymus gland is at maximum size, producing abundant naive T-cells.`;
-  else if(age<13) body = `<strong>Childhood development.</strong> Telomere loss slows to ~50 bp/yr as growth decelerates. The epigenetic landscape is stabilizing. Long bone growth plates are active. The immune repertoire is diversifying. Cognitive development is rapid — myelination of neural pathways continues.`;
-  else if(age<18) body = `<strong>Puberty &amp; adolescence.</strong> Sex hormones surge: testosterone drives male muscle/bone growth and broader shoulders; estrogen drives female hip widening, breast development, and — crucially — activates telomerase in several tissues, giving females a ~200-500 bp telomere advantage. Growth plates begin fusing. Brain prefrontal cortex is still developing.`;
-  else if(age<30) body = `<strong>Peak physiological function.</strong> Telomere loss has slowed to ~30 bp/yr. Muscle mass, bone density, and cardiac output are at maximum. Stem cell reserves are robust. DNA repair mechanisms function optimally. Senescent cell burden is negligible (<1%). This is the biological baseline from which aging is measured.`;
-  else if(age<45) body = `<strong>Early decline begins.</strong> NAD+ levels start dropping (~50% decline by age 50). p16<sup>INK4a</sup> senescence markers begin accumulating. Telomeres: ${avg.toLocaleString()} bp — still above threshold but shortening steadily. Collagen production slows (visible as first wrinkles). Muscle mass decreases ~3-8% per decade. Hair follicle melanocytes begin failing (gray hair onset).`;
-  else if(age<55) body = `<strong>Midlife inflection point.</strong> Females undergo menopause (~age 50): estrogen drops sharply, accelerating telomere loss by ~12 bp/yr and increasing cardiovascular risk. Males: testosterone declining ~1%/yr since age 30. Thymus has involuted to ~10% of peak size → reduced naive T-cell production. Senescent cells: ~${Math.round(sen)}% of tissue. DNA methylation drift is significant (Horvath clock reads ${BIO.epigeneticAge(age,scn)}).`;
-  else if(age<65) body = `<strong>Accelerating decline.</strong> Telomeres at ${avg.toLocaleString()} bp — approaching the 5,000 bp threshold where cells enter replicative senescence. Stem cell exhaustion is measurable in bone marrow, gut, and skin. SASP (senescence-associated secretory phenotype) drives chronic inflammation ("inflammaging"). Sarcopenia accelerates. Bone density dropping ~1%/yr. Wound healing takes 2-3× longer than at age 25.`;
-  else if(age<75) body = `<strong>Telomeres near critical threshold.</strong> At ${avg.toLocaleString()} bp, many cell lineages are approaching the ~5,000 bp Hayflick limit. Immune senescence is advanced — vulnerability to infections increases markedly. ~${Math.round(sen)}% of cells are senescent, secreting inflammatory cytokines (IL-6, TNF-α) that damage neighboring tissue. Epigenetic age: ${BIO.epigeneticAge(age,scn)}. Cognitive reserve is being drawn down.`;
-  else body = `<strong>Advanced cellular aging.</strong> Telomeres at ${avg.toLocaleString()} bp — many below the 5,000 bp failure threshold. Cell replacement rate is severely diminished. Stem cell pools are largely exhausted. Senescent cell burden: ~${Math.round(sen)}%. Organ reserve capacity is minimal — the margin between baseline function and failure narrows. DNA repair errors accumulate, increasing mutation load.`;
+  // Subtle breathing
+  const br=Math.sin(t*.002)*.003;
+  [mG,fG].forEach(g=>{const d=g.userData.d;if(d.torso)d.torso.scale.z=1+br});
 
-  // Scenario-specific additions
-  if(scn==='telomerase' && SIM.teloAct>0) {
-    body += `<div class="info-section"><h4>Telomerase Intervention</h4>Telomerase (hTERT) reactivated at ${SIM.teloAct}% — adding ~${Math.round(SIM.teloAct*0.85)} bp/yr to chromosome ends. This mirrors the Blasco lab's 2012 finding: AAV9-delivered telomerase extended mouse lifespan 24% without increasing cancer incidence. At current levels, telomeres are ${(avg-BIO.telomereLength(age,'m','normal')).toLocaleString()} bp longer than unmodified baseline. Cancer surveillance (p53 pathway) must remain intact — ~85% of human cancers reactivate telomerase, so this intervention walks a fine line.</div>`;
-  }
-  if(scn==='methylation' && SIM.methRev>0) {
-    body += `<div class="info-section"><h4>Epigenetic Reprogramming</h4>DNA methylation reversal at ${SIM.methRev}% — modeled on cyclic OSKM (Yamanaka factor) expression. TET enzymes (TET1/2/3) actively demethylate CpG sites, resetting the Horvath clock. Epigenetic age reads ${BIO.epigeneticAge(age,scn)} vs chronological ${Math.round(age)}. Partial reprogramming preserves cell identity while reversing age-associated gene silencing — full reprogramming would risk teratoma formation. This approach was validated in Ocampo et al. (2016): cyclic OSKM in progeroid mice extended lifespan 30%.</div>`;
-  }
-  if(scn==='selective') {
-    body += `<div class="info-section"><h4>Selective Division Control</h4>Cell division throttled to ${SIM.divRate}% in low-priority tissues. This mirrors the mTOR/rapamycin mechanism — reducing growth signaling conserves telomeres and reduces mutation accumulation. Rapamycin extends mouse lifespan ~25%. The tradeoff: immune cells and gut epithelium need high turnover; suppressing them too aggressively causes immunodeficiency and malabsorption. Current setting preserves essential tissue renewal while reducing wasteful proliferation.</div>`;
-  }
-  if(scn==='combined') {
-    body += `<div class="info-section"><h4>Combined Longevity Protocol</h4>Three synergistic mechanisms: (1) Telomerase adds base pairs, extending replicative capacity; (2) Selective division modulation conserves telomere reserves; (3) Methylation reversal resets the epigenetic clock. Net biological age: ${BIO.epigeneticAge(age,scn)} at chronological ${Math.round(age)}. This represents a theoretical maximum — no single intervention in mammals has achieved all three simultaneously. Closest analogs: naked mole rats naturally employ enhanced DNA repair + cancer suppression + maintained telomerase to achieve 30+ year lifespans at mouse body size.</div>`;
-  }
+  updChrom(S.age);
 
-  // Sex differences
-  body += `<div class="info-section"><h4>Sex Differences at Age ${Math.round(age)}</h4>`;
-  if(age<13) body += `Minimal sex-based differences in telomere biology at this age. Male and female growth trajectories are nearly identical. Hormonal differentiation has not yet begun.`;
-  else if(age<50) body += `Females maintain ${(teloF-teloM).toLocaleString()} bp longer telomeres than males. Estrogen activates telomerase in white blood cells and reproductive tissues via estrogen response elements in the hTERT promoter. Males have higher baseline oxidative stress (testosterone effect), which accelerates telomere erosion. Males show faster age-related muscle loss but maintain higher absolute muscle mass.`;
-  else body += `Post-menopause: female telomere advantage is narrowing (now ${(teloF-teloM).toLocaleString()} bp). Estrogen-mediated telomerase activation has ceased. Cardiovascular risk converges between sexes. Males continue to show faster sarcopenia but females show accelerated bone density loss (osteoporosis risk 4× higher).`;
-  body += `</div>`;
-
-  return {title, sev, body};
-}
-
-/* ══════════════════════════════════════════════════════════
-   SECTION 8 — UI UPDATE
-   ══════════════════════════════════════════════════════════ */
-
-function hColor(v){return v>=75?'#4ade80':v>=50?'#fbbf24':v>=25?'#f87171':'#c084fc'}
-
-function updateUI() {
-  const age = SIM.age;
-  const scn = SIM.scenario;
-
-  // Age display
-  document.getElementById('ageNum').textContent = Math.round(age);
-  document.getElementById('ageStage').textContent = ageStage(age);
-  document.getElementById('ageSlider').value = age;
-
-  // Telomere values
-  const tM = BIO.telomereLength(age,'m',scn);
-  const tF = BIO.telomereLength(age,'f',scn);
-  document.getElementById('teloMV').textContent = tM.toLocaleString()+' bp';
-  document.getElementById('teloFV').textContent = tF.toLocaleString()+' bp';
-  document.getElementById('teloMV').style.color = hColor(tM/130);
-  document.getElementById('teloFV').style.color = hColor(tF/130);
-
-  // Telomere bars
-  document.getElementById('teloBarM').style.width = Math.max(0,tM/13000*100)+'%';
-  document.getElementById('teloBarM').style.background = hColor(tM/130);
-  document.getElementById('teloBarF').style.width = Math.max(0,tF/13000*100)+'%';
-  document.getElementById('teloBarF').style.background = hColor(tF/130);
-
-  // Epigenetic / senescence
-  document.getElementById('epiAgeV').textContent = BIO.epigeneticAge(age,scn);
-  document.getElementById('methV').textContent = Math.round(BIO.methylationDrift(age,scn))+'%';
-  document.getElementById('senV').textContent = '~'+Math.round(BIO.senescentCells(age,scn))+'%';
-
-  // System health
-  const hM = BIO.systemHealth(age,'m',scn);
-  const hF = BIO.systemHealth(age,'f',scn);
-  SYSTEMS.forEach(s => {
-    const v = Math.round((hM[s.id]+hF[s.id])/2);
-    document.getElementById('hf_'+s.id).style.width = v+'%';
-    document.getElementById('hf_'+s.id).style.background = hColor(v);
-    document.getElementById('hp_'+s.id).textContent = v+'%';
-    document.getElementById('hp_'+s.id).style.color = hColor(v);
+  // Project labels
+  const vp=cvs.parentElement.getBoundingClientRect();
+  [[mG,'lM','m'],[fG,'lF','f']].forEach(([grp,id,sex])=>{
+    const ht=BIO.heightCm(S.age,sex)*U+.25;
+    const p=new THREE.Vector3(grp.position.x,ht,0).project(cam);
+    const el=$(id);el.style.left=(p.x*.5+.5)*vp.width+'px';el.style.top=(-p.y*.5+.5)*vp.height+'px';
   });
 
-  // Figure labels
-  const hCmM = BIO.heightCm(age,'m');
-  const hCmF = BIO.heightCm(age,'f');
-  document.getElementById('maleInfo').textContent = `Telomeres: ${tM.toLocaleString()} bp`;
-  document.getElementById('maleHeight').textContent = `${Math.round(hCmM)} cm / ${(hCmM/2.54/12|0)}′${Math.round(hCmM/2.54%12)}″`;
-  document.getElementById('femaleInfo').textContent = `Telomeres: ${tF.toLocaleString()} bp`;
-  document.getElementById('femaleHeight').textContent = `${Math.round(hCmF)} cm / ${(hCmF/2.54/12|0)}′${Math.round(hCmF/2.54%12)}″`;
-
-  // BP budget prediction
-  const avgTelo = (tM+tF)/2;
-  const remaining = avgTelo - 4000;
-  const yrsLeft = remaining>0?Math.round(remaining/30):0;
-  document.getElementById('bpPredict').textContent = remaining>3000
-    ? `Reserves: ~${yrsLeft} years of division capacity`
-    : remaining>1000 ? `Warning: ~${yrsLeft} years remaining`
-    : 'Critical: reserves nearly exhausted';
-
-  // Science info panel
-  const info = scienceInfo(age, scn);
-  const pillClass = {ok:'pill-ok',warn:'pill-warn',danger:'pill-danger',boost:'pill-boost'}[info.sev];
-  document.getElementById('infoTitle').innerHTML = `${info.title} <span class="pill ${pillClass}">${info.sev==='boost'?'Enhanced':info.sev==='ok'?'Healthy':info.sev==='warn'?'Declining':'Critical'}</span>`;
-  document.getElementById('infoBody').innerHTML = info.body;
+  oc.update();
+  const r=cvs.parentElement.getBoundingClientRect();
+  if(cvs.width!==r.width*R.getPixelRatio()||cvs.height!==r.height*R.getPixelRatio()){R.setSize(r.width,r.height);cam.aspect=r.width/r.height;cam.updateProjectionMatrix()}
+  R.render(sc,cam);
 }
+requestAnimationFrame(anim);updUI();
 
-/* ══════════════════════════════════════════════════════════
-   SECTION 9 — ANIMATION LOOP
-   ══════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════
+   DOWNLOAD
+   ══════════════════════════════════════════ */
+window.dlSim=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['<!DOCTYPE html>\n'+document.documentElement.outerHTML],{type:'text/html'}));a.download='telomere-aging-simulation.html';a.click()};
+window.dlReport=()=>{
+const age=Math.round(S.age),tM=BIO.telo(age,'m',S.sc),tF=BIO.telo(age,'f',S.sc);
+const hM=BIO.sysHealth(age,'m',S.sc),hF=BIO.sysHealth(age,'f',S.sc);
+const r=`${'═'.repeat(60)}
+HUMAN AGING & TELOMERE DYNAMICS — REPORT
+${'═'.repeat(60)}
+Generated: ${new Date().toISOString().split('T')[0]}
+Scenario:  ${S.sc.toUpperCase()}  |  Age: ${age} (${ageSt(age)})
 
-let lastT = 0;
-const YPS = 2.5; // years per second at 1x
+TELOMERE STATUS
+  Male:     ${tM.toLocaleString()} bp
+  Female:   ${tF.toLocaleString()} bp
+  Birth:    8,000-13,000 bp  |  Threshold: 5,000 bp
 
-function animate(t) {
-  requestAnimationFrame(animate);
-  const dt = Math.min((t-lastT)/1000, 0.1);
-  lastT = t;
+EPIGENETIC CLOCK
+  Chrono: ${age}  |  Epi: ${BIO.epiAge(age,S.sc)}  |  Drift: ${Math.round(BIO.methDrift(age,S.sc))}%
+  Senescent cells: ~${Math.round(BIO.senCells(age,S.sc))}%
 
-  // Advance age
-  if(SIM.pb !== 0) {
-    SIM.age = Math.max(0, Math.min(80, SIM.age + SIM.pb * YPS * dt));
-    if(SIM.age<=0||SIM.age>=80) SIM.pb=0;
-    updateUI();
-  }
+SYSTEM HEALTH (M / F)
+  Gut:     ${hM.gut}% / ${hF.gut}%    Blood:  ${hM.blood}% / ${hF.blood}%
+  Immune:  ${hM.immune}% / ${hF.immune}%    Skin:   ${hM.skin}% / ${hF.skin}%
+  Muscle:  ${hM.muscle}% / ${hF.muscle}%    Brain:  ${hM.brain}% / ${hF.brain}%
+  Bone:    ${hM.bone}% / ${hF.bone}%    Heart:  ${hM.heart}% / ${hF.heart}%
 
-  // Update 3D figures
-  updateFigure(maleGroup, SIM.age);
-  updateFigure(femaleGroup, SIM.age);
+BASE PAIR MODEL
+  Mouse: 7,000bp × 2yr = 14,000 bp·yr
+  Human: 10,500bp, ~30 bp/yr adult attrition
+  48× slower attrition → theoretical max ~96-120 years
+  Remaining: ${Math.max(0,Math.round(((tM+tF)/2-4000)/30))} years reserves
 
-  // Subtle breathing animation
-  const breath = Math.sin(t*0.002)*0.01;
-  [maleGroup,femaleGroup].forEach(g => {
-    const p = g.userData.parts;
-    if(p.chest) p.chest.scale.z *= (1+breath);
-  });
+INTERVENTIONS
+  Division: ${S.divRate}%  |  Telomerase: ${S.teloAct}%  |  Methylation Rev: ${S.methRev}%
 
-  // Chromosome
-  updateChrom(SIM.age);
+PHYSICAL
+  Male: ${Math.round(BIO.heightCm(age,'m'))}cm  |  Female: ${Math.round(BIO.heightCm(age,'f'))}cm
+  Muscle: M${(BIO.muscle(age,'m')*100).toFixed(0)}% F${(BIO.muscle(age,'f')*100).toFixed(0)}%
+  Hair gray: ${(BIO.hairGray(age)*100).toFixed(0)}%  |  Skin: ${(BIO.skinH(age)*100).toFixed(0)}%
 
-  // Position figure labels (project 3D → 2D)
-  const vp = canvas.parentElement.getBoundingClientRect();
-  [['labelMale',maleGroup],['labelFemale',femaleGroup]].forEach(([id,grp])=>{
-    const hCm = BIO.heightCm(SIM.age, grp.userData.sex);
-    const topY = hCm * UNIT + 0.3;
-    const pos = new THREE.Vector3(grp.position.x, topY, 0);
-    pos.project(camera);
-    const el = document.getElementById(id);
-    el.style.left = ((pos.x*0.5+0.5)*vp.width)+'px';
-    el.style.top = ((-pos.y*0.5+0.5)*vp.height)+'px';
-  });
-
-  // Render
-  ctrl.update();
-  resizeRenderer();
-  renderer.render(scene, camera);
-}
-
-function resizeRenderer(){
-  const r = canvas.parentElement.getBoundingClientRect();
-  if(canvas.width!==r.width*renderer.getPixelRatio()||canvas.height!==r.height*renderer.getPixelRatio()){
-    renderer.setSize(r.width,r.height);
-    camera.aspect=r.width/r.height;
-    camera.updateProjectionMatrix();
-  }
-}
-
-requestAnimationFrame(animate);
-updateUI();
-
-/* ══════════════════════════════════════════════════════════
-   SECTION 10 — DOWNLOAD
-   ══════════════════════════════════════════════════════════ */
-
-window.downloadSim = () => {
-  const html = document.documentElement.outerHTML;
-  const blob = new Blob(['<!DOCTYPE html>\n'+html],{type:'text/html'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'telomere-aging-simulation.html';
-  a.click();
-};
-
-window.downloadReport = () => {
-  const age = Math.round(SIM.age);
-  const tM = BIO.telomereLength(age,'m',SIM.scenario);
-  const tF = BIO.telomereLength(age,'f',SIM.scenario);
-  const hM = BIO.systemHealth(age,'m',SIM.scenario);
-  const hF = BIO.systemHealth(age,'f',SIM.scenario);
-  const ea = BIO.epigeneticAge(age,SIM.scenario);
-  const md = Math.round(BIO.methylationDrift(age,SIM.scenario));
-  const sn = Math.round(BIO.senescentCells(age,SIM.scenario));
-  const info = scienceInfo(age, SIM.scenario);
-
-  const r = `
-${'═'.repeat(66)}
-  HUMAN AGING & TELOMERE DYNAMICS — SIMULATION REPORT
-${'═'.repeat(66)}
-
-  Generated:  ${new Date().toISOString().split('T')[0]}
-  Scenario:   ${SIM.scenario.toUpperCase()}
-  Age:        ${age} years (${ageStage(age)})
-
-${'─'.repeat(66)}
-  TELOMERE STATUS
-${'─'.repeat(66)}
-  Male telomeres:     ${tM.toLocaleString()} bp
-  Female telomeres:   ${tF.toLocaleString()} bp
-  Birth range:        8,000 – 13,000 bp
-  Critical threshold: 5,000 bp (cellular senescence)
-  Hayflick limit:     ~50-70 cell divisions
-
-${'─'.repeat(66)}
-  EPIGENETIC CLOCK
-${'─'.repeat(66)}
-  Chronological age:  ${age}
-  Epigenetic age:     ${ea}
-  Methylation drift:  ${md}%
-  Senescent cells:    ~${sn}% of tissue
-
-${'─'.repeat(66)}
-  SYSTEM HEALTH (Male / Female)
-${'─'.repeat(66)}
-  Gut Lining:         ${hM.gut}% / ${hF.gut}%
-  Blood/Bone Marrow:  ${hM.blood}% / ${hF.blood}%
-  Immune System:      ${hM.immune}% / ${hF.immune}%
-  Skin/Hair:          ${hM.skin}% / ${hF.skin}%
-  Muscle:             ${hM.muscle}% / ${hF.muscle}%
-  Brain:              ${hM.brain}% / ${hF.brain}%
-  Bone:               ${hM.bone}% / ${hF.bone}%
-  Heart:              ${hM.heart}% / ${hF.heart}%
-
-${'─'.repeat(66)}
-  BASE PAIR LIFESPAN MODEL
-${'─'.repeat(66)}
-  Mouse:    7,000 bp telomeres × 2 yr lifespan = 14,000 bp·yr
-  Human:    10,500 bp, ~30 bp/yr adult attrition
-  Ratio:    Mouse loses 3,500 bp/yr vs human 30 bp/yr = 117× slower
-  Model:    Human theoretical max ≈ 96–120 years
-  Current:  ${Math.max(0,Math.round(((tM+tF)/2-4000)/30))} years of reserves remaining
-
-${'─'.repeat(66)}
-  INTERVENTION PARAMETERS
-${'─'.repeat(66)}
-  Cell division rate:    ${SIM.divRate}%
-  Telomerase activation: ${SIM.teloAct}%
-  Methylation reversal:  ${SIM.methRev}%
-
-${'─'.repeat(66)}
-  PHYSIOLOGICAL NOTES
-${'─'.repeat(66)}
-  Male height:   ${Math.round(BIO.heightCm(age,'m'))} cm
-  Female height:  ${Math.round(BIO.heightCm(age,'f'))} cm
-  Muscle factor:  M ${(BIO.muscleFactor(age,'m')*100).toFixed(0)}% / F ${(BIO.muscleFactor(age,'f')*100).toFixed(0)}%
-  Hair graying:   ${(BIO.hairGray(age)*100).toFixed(0)}%
-  Skin health:    ${(BIO.skinHealth(age)*100).toFixed(0)}%
-
-${'─'.repeat(66)}
-  KEY BIOLOGICAL FACTS
-${'─'.repeat(66)}
-  • Telomere shortening is biphasic: ~270 bp/yr in infancy (rapid
-    growth), ~50 bp/yr in childhood, ~30 bp/yr in adulthood
-  • Females maintain longer telomeres via estrogen-activated
-    telomerase (hTERT) until menopause (~age 50)
-  • The Hayflick limit (~50-70 divisions) is set by telomere length
-  • Below ~5,000 bp, cells enter replicative senescence and secrete
-    SASP inflammatory factors (IL-6, TNF-α, MMP-3)
-  • DNA methylation at 353 CpG sites (Horvath clock) tracks
-    biological aging independent of telomere length
-  • Naked mole rats: 30+ yr lifespan at mouse body size via
-    enhanced DNA repair, cancer resistance, maintained telomerase
-  • Blasco lab (2012): AAV9-telomerase in mice → 24% lifespan
-    extension without increased cancer
-  • Yamanaka factors (OSKM): cyclic expression reversed aging
-    markers in mice (Ocampo et al., 2016, Cell)
-
-${'═'.repeat(66)}
-`.trim();
-
-  const blob = new Blob([r],{type:'text/plain'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `aging-report-age${age}-${SIM.scenario}.txt`;
-  a.click();
-};
+KEY BIOLOGY
+  • Biphasic telomere loss: ~270bp/yr infant → ~50bp/yr child → ~30bp/yr adult
+  • Females: estrogen activates hTERT telomerase (200-500bp advantage pre-menopause)
+  • Hayflick limit: ~50-70 divisions, set by telomere length
+  • Below 5,000bp: cells enter senescence, secrete SASP (IL-6, TNF-α)
+  • Horvath clock: 353 CpG sites track biological aging
+  • Naked mole rats: 30+ yr via DNA repair + cancer resistance + telomerase
+  • Blasco 2012: AAV9-telomerase → 24% mouse lifespan extension
+  • Ocampo 2016: cyclic OSKM → 30% extension in progeroid mice
+${'═'.repeat(60)}`;
+const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r],{type:'text/plain'}));a.download=`aging-report-age${age}-${S.sc}.txt`;a.click()};
 </script>
 </body>
 </html>
